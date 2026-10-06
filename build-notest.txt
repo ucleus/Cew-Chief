@@ -1,0 +1,107 @@
+database Information
+
+dbname: u652263477_uzi544086
+dbuser: u652263477_team1986
+dbpass: 'R8XpW!Y9o'
+
+(this password is also in api/config.php and ac/... no — just api/config.php,
+shared by both apps. Both gitignored, never committed.)
+
+Deploying to Hostinger + GitHub: see deploy/README.md. Short version:
+  ./deploy/deploy.sh --dry-run
+  ./deploy/deploy.sh --config   (first time only, uploads api/config.php)
+Source pushes to https://github.com/ucleus/Cew-Chief.git — note that's the
+exact URL given, "Cew-Chief" not "Crew-Chief"; flag if that's a typo.
+
+---
+
+Backend (PHP API)
+
+The app now talks to the MySQL database above through a small PHP API in api/.
+No Node server needed — this is plain PHP + PDO, meant to sit next to the
+built frontend on Hostinger shared hosting.
+
+Local dev setup:
+1. cp api/config.sample.php api/config.php (already done — just edit the password)
+2. Edit api/config.php and set DB_PASS to the real MySQL password for
+   u652263477_team1986. DB_HOST is 127.0.0.1 (same box as the DB).
+3. One-time catalog seed (tracks + bikes + setup param ranges + tyre
+   compounds — the dump only had table structure, no rows):
+     php api/seed.php
+4. Run the API:        php -S localhost:8080 -t api
+5. Run the frontend:   npm run dev
+   (vite.config.js already proxies /api -> http://localhost:8080)
+
+Production (Hostinger):
+- Build the frontend:  npm run build  -> outputs to dist/
+- Upload the contents of dist/ AND the api/ folder together into
+  public_html (as siblings — api/ sits next to index.html/assets/).
+- Create api/config.php on the server with the real DB password
+  (it's gitignored, so it won't come from a repo — copy it up manually
+  or recreate it from api/config.sample.php).
+- Everything fetches same-origin (/api/...), so no CORS config needed
+  in production.
+
+What moved:
+- Rider login/PIN stays local-only (device identity) — the schema has no
+  auth table, so there's nothing to sync there.
+- Bike selection in Settings now pulls from the real mg_bikes catalog
+  instead of a hardcoded list — pick your bike there before using Setup
+  or logging sessions.
+- Setup screen is now the "Garage": pick bike + track, see the saved
+  setup version chain, edit values against each bike's real param ranges,
+  save new versions (parent_setup_id chains them together).
+- Sessions (History tab) now log real lap times, tyre/brake temps, weather,
+  and corner-by-corner feedback into the database.
+- The AI setup generator moved from the Setup tab to a "Crew chief debrief"
+  button on each logged session in History — it reads that session's actual
+  lap/feedback data and proposes a change list you can accept/reject
+  per-parameter, then apply straight into a new setup version.
+
+---
+
+Second app: Assetto Corsa (ac/)
+
+The `cars`/`setups`/`setup_corners`/`stints`/`stint_*`/`tire_compounds`/
+`tracks`/`recommendations`/`recommendation_items` tables are a separate
+domain (a sim racing car, not a MotoGP bike) — per-corner suspension,
+real gear ratios, structured lock-up/understeer feedback, multi-driver
+stints. That's a second standalone frontend, `ac/`, with its own
+package.json/vite.config.js, sharing the same api/ backend and DB.
+
+Local dev setup (run alongside or instead of the MotoGP app):
+1. cd ac && npm install
+2. php -S localhost:8080 -t api   (same API server as the MotoGP app — only
+   run one copy; both frontends point at the same backend)
+3. One-time catalog seed:
+     php api/ac_seed.php
+   This seeds 10 real base-game AC cars (Mazda MX-5 Cup, GT86, M3 E30/E92,
+   458 Italia, MP4-12C, GT-R, Elise SC, X-Bow R, RUF RT12R) with real-world
+   mass/weight-distribution/dimensions, generic setup param ranges (min/max
+   per car, not yet converted to real spring/damper units), a default
+   "Slick" tire compound, and 10 real base-game tracks (Silverstone, Monza,
+   Mugello, Imola, Vallelunga, Magione, Nürburgring GP, Spa, Zandvoort,
+   Trento-Bondone).
+   IMPORTANT: every car/track's `ac_folder` is left NULL — I couldn't
+   verify the exact content folder names from your install. Check your
+   content/cars and content/tracks directories and fill them in (and swap
+   in any mod content you actually run) via PATCH ac_cars.php / ac_tracks.php,
+   or add a quick edit form if you want one.
+4. cd ac && npm run dev   (runs on :5174, proxies /api -> :8080)
+
+What it adds over the MotoGP app:
+- 4-corner setup editor (FL/FR/RL/RR independently: pressure, camber, toe,
+  springs, ride height, packers, bump-stops, slow/fast bump & rebound) plus
+  car-wide params (brakes, ARB, caster, wings, diff, final drive, gear
+  ratios, TC/ABS/engine brake/turbo).
+- Stint logging with per-corner tire temps/pressures/wear, lap-by-lap times,
+  and structured feedback (fixed symptom enum: UNDERSTEER, OVERSTEER,
+  SNAP_OVERSTEER, TRACTION_LOSS, FRONT/REAR_LOCKING, INSTABILITY, BOTTOMING,
+  BOUNCING, SLOW_RESPONSE, OTHER).
+- A MATH calculator (ac/src/utils/acCalculators.js, no API call, instant):
+  spring rate from corner weight + motion ratio, cold tire pressure
+  correction from hot-pressure-vs-compound-target delta, a brake bias nudge
+  from lock-up feedback, and a front/rear ARB split heuristic. Its output
+  is shown directly in History as a free preview, and is also handed to the
+  AI debrief as anchor values — items the AI leaves unchanged stay tagged
+  MATH, items it overrides get tagged AI, matching recommendation_items.source.
