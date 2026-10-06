@@ -3,7 +3,22 @@ import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
 import { CarsApi } from "../api/client";
+import { DRIVETRAIN_OPTIONS } from "../data/acParams";
 import { C } from "../styles/theme";
+
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
+
+const EMPTY_IMPORT_CAR = {
+  name: "",
+  car_class: "",
+  drivetrain: "MR",
+  total_mass_kg: "",
+  front_weight_pct: "",
+  wheelbase_mm: "",
+  track_front_mm: "",
+  track_rear_mm: "",
+  fuel_tank_l: "",
+};
 
 const SettingsScreen = ({ settings, onSave, onBack }) => {
   const [form, setForm] = useState(
@@ -14,9 +29,58 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
   const [cars, setCars] = useState([]);
   const [carsError, setCarsError] = useState("");
 
+  const [importFiles, setImportFiles] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importRanges, setImportRanges] = useState([]);
+  const [importCar, setImportCar] = useState(null);
+  const [savingCar, setSavingCar] = useState(false);
+
+  const reloadCars = () => CarsApi.list().then(setCars).catch((e) => setCarsError(e.message));
   useEffect(() => {
-    CarsApi.list().then(setCars).catch((e) => setCarsError(e.message));
+    reloadCars();
   }, []);
+
+  const runImport = async () => {
+    if (!importFiles?.length) return;
+    setImportBusy(true);
+    setImportError("");
+    try {
+      const body = new FormData();
+      for (const file of importFiles) body.append("files[]", file);
+      const res = await fetch(`${API_BASE}/ac_import.php`, { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      if (!data.found) {
+        setImportError((data.errors || []).join(" ") || "None of those files looked like setup.ini, car.ini or suspensions.ini.");
+        return;
+      }
+      setImportRanges(data.ranges || []);
+      setImportCar({ ...EMPTY_IMPORT_CAR, ...data.car });
+    } catch (e) {
+      setImportError(e.message);
+    }
+    setImportBusy(false);
+  };
+
+  const saveImportedCar = async () => {
+    if (!importCar?.name || !importCar?.car_class) {
+      setImportError("Name and class are required.");
+      return;
+    }
+    setSavingCar(true);
+    setImportError("");
+    try {
+      await CarsApi.create(importCar);
+      setImportCar(null);
+      setImportRanges([]);
+      setImportFiles(null);
+      await reloadCars();
+    } catch (e) {
+      setImportError(e.message);
+    }
+    setSavingCar(false);
+  };
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const changeCar = (carId) => {
@@ -102,6 +166,78 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
               )}
             </div>
           </div>
+        </Panel>
+
+        <Panel title="Import a Car From Game Files" className="span-full">
+          <div className="hud-body">
+            <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+              Reads mass/fuel/dimensions from <code>car.ini</code> and <code>suspensions.ini</code>, and setting
+              ranges from <code>setup.ini</code> — found in the car's <b>data</b> folder under
+              assettocorsa/content/cars/&lt;car&gt; once data.acd is unpacked. Nothing is saved until you check the
+              form below and press Save.
+            </p>
+            <input
+              type="file"
+              multiple
+              accept=".ini,.txt,text/plain"
+              onChange={(e) => setImportFiles(Array.from(e.target.files || []))}
+            />
+            <button type="button" className="hud-btn hud-btn--ghost" onClick={runImport} disabled={importBusy || !importFiles?.length} style={{ marginTop: "8px" }}>
+              {importBusy ? "Reading..." : "Read the files"}
+            </button>
+            {importError && <Status color={C.orange}>{importError}</Status>}
+          </div>
+
+          {importCar && (
+            <div className="hud-body hud-form">
+              <div className="hud-field wide">
+                <label className="hud-label" htmlFor="imp-name">Car Name</label>
+                <input id="imp-name" className="hud-input" value={importCar.name} onChange={(e) => setImportCar((c) => ({ ...c, name: e.target.value }))} />
+              </div>
+              <div className="hud-field">
+                <label className="hud-label" htmlFor="imp-class">Class</label>
+                <input id="imp-class" className="hud-input" value={importCar.car_class} onChange={(e) => setImportCar((c) => ({ ...c, car_class: e.target.value }))} placeholder="GT3, Road, ..." />
+              </div>
+              <div className="hud-field">
+                <span className="hud-label">Drivetrain</span>
+                <CustomSelect value={importCar.drivetrain} onChange={(v) => setImportCar((c) => ({ ...c, drivetrain: v }))} options={DRIVETRAIN_OPTIONS} />
+              </div>
+              {["total_mass_kg", "front_weight_pct", "wheelbase_mm", "track_front_mm", "track_rear_mm", "fuel_tank_l"].map((key) => (
+                <div className="hud-field" key={key}>
+                  <label className="hud-label" htmlFor={`imp-${key}`}>{key.replace(/_/g, " ")}</label>
+                  <input
+                    id={`imp-${key}`}
+                    className="hud-input"
+                    type="number"
+                    value={importCar[key]}
+                    onChange={(e) => setImportCar((c) => ({ ...c, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <div className="hud-field wide">
+                <button type="button" className="hud-btn" onClick={saveImportedCar} disabled={savingCar}>
+                  {savingCar ? "Saving..." : "Save Car"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {importRanges.length > 0 && (
+            <div className="hud-body">
+              <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+                {importRanges.length} setting range(s) found in setup.ini — not auto-mapped to our param keys, since
+                guessing that mapping wrong would silently save bad ranges. Compare against the Garage screen and
+                enter the ones that matter yourself:
+              </p>
+              <div className="hud-stack" style={{ gap: "4px" }}>
+                {importRanges.map((r, i) => (
+                  <p className="hud-text" key={i} style={{ color: C.ink2 }}>
+                    <b>{r.section}</b> ({r.label}): {r.min_value}–{r.max_value} step {r.step_value}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </Panel>
 
         <div className="span-full">

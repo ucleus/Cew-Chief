@@ -3,12 +3,27 @@ import Icon from "../ui/Icon";
 import { Status } from "../ui/Hud";
 import { RecItemsApi, RecommendationsApi, SetupsApi } from "../../api/client";
 import { CHOICE_LABELS, CHOICE_PARAMS, PARAM_LABELS } from "../../data/setupParams";
+import { buildHistory } from "../../utils/motoHistory";
+import { runModel } from "../../utils/motoMath";
 import { C } from "../../styles/theme";
 
-const PROMPT_VERSION = "mg-v1";
-const MODEL = "claude-sonnet-4-6";
+const PROMPT_VERSION = "mg-v2";
+const MODEL_PROMPT_VERSION = "model-v1";
+const MODEL_NAME = "claude-sonnet-4-6";
 
-function buildPrompt({ bike, track, setup, session }) {
+function currentTextFor(item, bike, setup) {
+  if (item.kind === "CHOICE") {
+    const opt = bike.options.find((o) => o.id === setup.choices[item.param_key]);
+    return opt?.kind || "unset";
+  }
+  return String(setup.values[item.param_key] ?? "");
+}
+
+function suggestedTextFor(item) {
+  return item.kind === "CHOICE" ? item.suggested_option : String(item.suggested_number);
+}
+
+function buildPrompt({ bike, track, setup, session, modelResult, history }) {
   const paramLines = bike.params
     .map((p) => `- ${p.param_key}: current ${setup.values[p.param_key]} (range ${p.min_value}-${p.max_value}, step ${p.step_value})`)
     .join("\n");
@@ -23,13 +38,26 @@ function buildPrompt({ bike, track, setup, session }) {
   const feedbackLines = (session.feedback || [])
     .map((f) => `  [${f.phase}/${f.corner_type}] ${f.symptom} (severity ${f.severity}/5)${f.corner_ref ? ` @ ${f.corner_ref}` : ""}${f.note ? ` — ${f.note}` : ""}`)
     .join("\n");
+  const modelLines = (modelResult?.items || [])
+    .map((i) => `- ${i.param_key}: model suggests ${i.suggested_text} (currently ${i.current_text}) — ${i.rationale}`)
+    .join("\n");
+  const historyLines = (history || [])
+    .map((h) => {
+      const changes = h.changes.map((c) => `${c.param_key} ${c.from}→${c.to}`).join(", ");
+      return `- v${h.from_version}→v${h.to_version}: ${changes}. Lap delta ${h.best_lap_delta_ms}ms (comparable: ${h.conditions_comparable}). Verdict: ${h.driver_verdict || "none"}`;
+    })
+    .join("\n");
 
   const system = `You are the head race engineer and crew chief for a MotoGP team — world class, no-nonsense, technical. You speak directly, like a seasoned race engineer who has won multiple world championships. You do NOT coddle the rider. You give exact numbers within the allowed ranges, explain the physics, and tell them exactly what will happen if they don't follow the setup.
+
+A rule-based model has already run and produced some candidate changes (see "Model suggests" below) — it is a keyword-matched heuristic, not a physics simulator, so treat its numbers as a starting point you can confirm or override, not as settled fact.
+
+Use the history: do not repeat a change that was already tried and made the bike slower in comparable conditions (conditions_comparable=false means don't trust the lap delta). Treat lap time differences smaller than noise with suspicion.
 
 Always respond in this EXACT JSON format (no markdown, no extra text):
 {
   "headline": "One brutal honest assessment sentence",
-  "diagnosis": "What the session data and feedback show, in technical detail",
+  "diagnosis": "What the session data, feedback and history show, in technical detail",
   "confidence": "LOW|MEDIUM|HIGH",
   "expected_tradeoff": "What the rider gives up by taking this advice",
   "items": [
@@ -38,7 +66,7 @@ Always respond in this EXACT JSON format (no markdown, no extra text):
   ],
   "coach_notes": "A brutally honest, technically deep paragraph — what the rider MUST do next session"
 }
-Only include items for parameters worth changing — do not pad the list. Stay strictly within each param's given range.`;
+Recommend one primary change and at most three secondary changes. Only include items worth changing — do not pad the list. Stay strictly within each param's given range.`;
 
   const user = `Bike: ${bike.name} (${bike.class}, ${bike.game})
 Track: ${track.name}, ${track.country || ""}
@@ -55,6 +83,8 @@ Brake temps: front ${session.brake_front_temp || "?"}, rear ${session.brake_rear
 Hit limiter: ${session.hit_limiter ? "yes" : "no"}
 ${lapLines ? `Lap-by-lap:\n${lapLines}\n` : ""}
 ${feedbackLines ? `Corner feedback:\n${feedbackLines}\n` : ""}
+${modelLines ? `Model suggests:\n${modelLines}\n` : "Model suggests: nothing triggered.\n"}
+${historyLines ? `History on this bike+track:\n${historyLines}\n` : "History on this bike+track: none yet.\n"}
 Driver notes: ${session.driver_notes || "none"}
 
 Diagnose the problems and give a championship-level setup correction.`;
@@ -62,31 +92,47 @@ Diagnose the problems and give a championship-level setup correction.`;
   return { system, user };
 }
 
-function currentTextFor(item, bike, setup) {
-  if (item.kind === "CHOICE") {
-    const opt = bike.options.find((o) => o.id === setup.choices[item.param_key]);
-    return opt?.kind || "unset";
-  }
-  return String(setup.values[item.param_key] ?? "");
-}
-
-function suggestedTextFor(item) {
-  return item.kind === "CHOICE" ? item.suggested_option : String(item.suggested_number);
-}
-
 const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied }) => {
-  const [recommendation, setRecommendation] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [runningModel, setRunningModel] = useState(false);
   const [error, setError] = useState("");
-  const [applying, setApplying] = useState(false);
+  const [applying, setApplying] = useState(null);
 
   useEffect(() => {
     RecommendationsApi.listBySession(session.id)
-      .then((rows) => setRecommendation(rows[0] || null))
+      .then(setRecommendations)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [session.id]);
+
+  const runModelAdvice = async () => {
+    setRunningModel(true);
+    setError("");
+    try {
+      const result = runModel({ bike, setup, session });
+      const items = result.items.map((item) => ({ ...item, suggested_option_id: item.suggested_option_id ?? null }));
+      const created = await RecommendationsApi.create({
+        session_id: session.id,
+        source: "MODEL",
+        prompt_version: MODEL_PROMPT_VERSION,
+        response_json: JSON.stringify(result),
+        diagnosis: result.diagnosis,
+        confidence: result.confidence,
+        expected_tradeoff: result.expected_tradeoff,
+        items,
+      });
+      const rows = await RecommendationsApi.listBySession(session.id);
+      setRecommendations(rows);
+      return rows.find((r) => r.id === created.id);
+    } catch (e) {
+      setError(e.message);
+      return null;
+    } finally {
+      setRunningModel(false);
+    }
+  };
 
   const generate = async () => {
     if (!apiKey) {
@@ -95,8 +141,12 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
     }
     setGenerating(true);
     setError("");
-    const { system, user } = buildPrompt({ bike, track, setup, session });
     try {
+      const modelResult = runModel({ bike, setup, session });
+      const chain = await SetupsApi.chain(bike.id, track.id);
+      const history = await buildHistory(chain);
+      const { system, user } = buildPrompt({ bike, track, setup, session, modelResult, history });
+
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -106,7 +156,7 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
           "anthropic-dangerous-direct-browser-access": "true",
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: MODEL_NAME,
           max_tokens: 2000,
           system,
           messages: [{ role: "user", content: user }],
@@ -141,7 +191,7 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
         session_id: session.id,
         source: "AI",
         provider: "anthropic",
-        model: MODEL,
+        model: MODEL_NAME,
         prompt_version: PROMPT_VERSION,
         request_json: JSON.stringify({ system, user }),
         response_json: JSON.stringify(parsed),
@@ -154,25 +204,26 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
       });
 
       const rows = await RecommendationsApi.listBySession(session.id);
-      setRecommendation(rows.find((r) => r.id === created.id) || rows[0]);
+      setRecommendations(rows);
     } catch (e) {
       setError(e.message);
     }
     setGenerating(false);
   };
 
-  const toggleAccepted = async (item, accepted) => {
+  const toggleAccepted = async (rec, item, accepted) => {
     await RecItemsApi.setAccepted(item.id, accepted);
-    setRecommendation((rec) => ({
-      ...rec,
-      items: rec.items.map((i) => (i.id === item.id ? { ...i, accepted } : i)),
-    }));
+    setRecommendations((rows) =>
+      rows.map((r) =>
+        r.id === rec.id ? { ...r, items: r.items.map((i) => (i.id === item.id ? { ...i, accepted } : i)) } : r,
+      ),
+    );
   };
 
-  const applyAccepted = async () => {
-    const accepted = recommendation.items.filter((i) => i.accepted === 1);
+  const applyAccepted = async (rec) => {
+    const accepted = rec.items.filter((i) => i.accepted === 1);
     if (!accepted.length) return;
-    setApplying(true);
+    setApplying(rec.id);
     setError("");
     try {
       const newValues = { ...setup.values };
@@ -192,87 +243,81 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
         name: `${bike.name} v${setup.version + 1}`,
         purpose: setup.purpose,
         change_summary: summary,
-        notes: recommendation.diagnosis,
+        notes: rec.diagnosis,
         values: newValues,
         choices: newChoices,
       });
 
-      await RecommendationsApi.updateStatus(recommendation.id, {
-        status: accepted.length === recommendation.items.length ? "APPLIED" : "PARTIAL",
+      await RecommendationsApi.updateStatus(rec.id, {
+        status: accepted.length === rec.items.length ? "APPLIED" : "PARTIAL",
         applied_setup_id: newSetup.id,
       });
-      setRecommendation((rec) => ({ ...rec, status: "APPLIED", applied_setup_id: newSetup.id }));
+      setRecommendations((rows) =>
+        rows.map((r) => (r.id === rec.id ? { ...r, status: "APPLIED", applied_setup_id: newSetup.id } : r)),
+      );
       onApplied?.(newSetup);
     } catch (e) {
       setError(e.message);
     }
-    setApplying(false);
+    setApplying(null);
   };
 
   if (loading) return <Status color={C.ink3}>Loading debrief...</Status>;
 
-  if (!recommendation) {
-    return (
-      <div>
-        <button type="button" className="hud-btn hud-btn--cyan" onClick={generate} disabled={generating}>
-          <Icon name="zap" size={16} color={C.ink} />
-          {generating ? "Engineer is thinking..." : "Ask Crew Chief"}
-        </button>
-        {error && <Status color={C.orange}>{error}</Status>}
-      </div>
-    );
-  }
-
-  const acceptedCount = recommendation.items.filter((i) => i.accepted === 1).length;
-
   return (
-    <div className="hud-stack" style={{ gap: "8px" }}>
-      <div className="hud-fix hud-fix--high">
-        <div className="hud-fix__head">
-          <span className="hud-tag">{recommendation.confidence}</span>
-          <span>{recommendation.status}</span>
+    <div className="hud-stack" style={{ gap: "10px" }}>
+      {recommendations.length === 0 && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button type="button" className="hud-btn hud-btn--ghost" onClick={runModelAdvice} disabled={runningModel}>
+            {runningModel ? "Running model..." : "Run Model (instant, no API key)"}
+          </button>
+          <button type="button" className="hud-btn hud-btn--cyan" onClick={generate} disabled={generating}>
+            <Icon name="zap" size={16} color={C.ink} />
+            {generating ? "Engineer is thinking..." : "Ask Crew Chief"}
+          </button>
         </div>
-        <p className="hud-text">{recommendation.diagnosis}</p>
-        {recommendation.expected_tradeoff && (
-          <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {recommendation.expected_tradeoff}</p>
-        )}
-      </div>
-
-      {recommendation.items.map((item) => (
-        <div key={item.id} className="hud-fix">
-          <div className="hud-fix__head">
-            <span className="hud-tag">{PARAM_LABELS[item.param_key] || CHOICE_LABELS[item.param_key] || item.param_key}</span>
-            <span>{item.current_text} → {item.suggested_text}</span>
-          </div>
-          <p className="hud-text">{item.rationale}</p>
-          {item.tradeoff && <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {item.tradeoff}</p>}
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button
-              type="button"
-              className="hud-chip"
-              aria-pressed={item.accepted === 1}
-              onClick={() => toggleAccepted(item, 1)}
-            >
-              Accept
-            </button>
-            <button
-              type="button"
-              className="hud-chip"
-              aria-pressed={item.accepted === 0}
-              onClick={() => toggleAccepted(item, 0)}
-            >
-              Skip
-            </button>
-          </div>
-        </div>
-      ))}
-
-      {recommendation.status === "PENDING" && (
-        <button type="button" className="hud-btn" onClick={applyAccepted} disabled={applying || !acceptedCount}>
-          {applying ? "Applying..." : `Apply ${acceptedCount || ""} Accepted → New Setup Version`}
-        </button>
       )}
       {error && <Status color={C.orange}>{error}</Status>}
+
+      {recommendations.map((rec) => {
+        const acceptedCount = rec.items.filter((i) => i.accepted === 1).length;
+        return (
+          <div key={rec.id} className="hud-stack" style={{ gap: "8px" }}>
+            <div className="hud-fix hud-fix--high">
+              <div className="hud-fix__head">
+                <span className="hud-tag">{rec.source}</span>
+                <span className="hud-tag">{rec.confidence}</span>
+                <span>{rec.status}</span>
+              </div>
+              <p className="hud-text">{rec.diagnosis}</p>
+              {rec.expected_tradeoff && (
+                <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {rec.expected_tradeoff}</p>
+              )}
+            </div>
+
+            {rec.items.map((item) => (
+              <div key={item.id} className="hud-fix">
+                <div className="hud-fix__head">
+                  <span className="hud-tag">{PARAM_LABELS[item.param_key] || CHOICE_LABELS[item.param_key] || item.param_key}</span>
+                  <span>{item.current_text} → {item.suggested_text}</span>
+                </div>
+                <p className="hud-text">{item.rationale}</p>
+                {item.tradeoff && <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {item.tradeoff}</p>}
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button type="button" className="hud-chip" aria-pressed={item.accepted === 1} onClick={() => toggleAccepted(rec, item, 1)}>Accept</button>
+                  <button type="button" className="hud-chip" aria-pressed={item.accepted === 0} onClick={() => toggleAccepted(rec, item, 0)}>Skip</button>
+                </div>
+              </div>
+            ))}
+
+            {rec.status === "PENDING" && (
+              <button type="button" className="hud-btn" onClick={() => applyAccepted(rec)} disabled={applying === rec.id || !acceptedCount}>
+                {applying === rec.id ? "Applying..." : `Apply ${acceptedCount || ""} Accepted → New Setup Version`}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };

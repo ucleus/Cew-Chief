@@ -21,31 +21,36 @@ $pdo = new PDO(
 
 const GAME = 'MotoGP 26';
 
-// name, country, length_m, corners, event/type notes
+// The 22 circuits in MotoGP 26 (RacingGames' launch track list, recovered
+// from the earlier build's tuner/moto_tracks.php — that app seeded name and
+// country only and left length/corners for the user to fill in; this one
+// keeps the length_m for calendar tracks already in the public record
+// instead of leaving it blank, but corner counts are left for you to enter
+// from a lap, same as the original did).
+// name, country, length_m, event/type notes
 $tracks = [
-    ['Lusail International Circuit', 'Qatar', 5380, 16, 'Qatar GP — Championship / Night'],
-    ['Autódromo Internacional de Goiânia', 'Brazil', 3840, 13, 'Brazilian GP — Championship'],
-    ['Autódromo Internacional do Algarve', 'Portugal', 4590, 15, 'Portuguese GP — Championship / Undulating'],
-    ['Circuit of the Americas / COTA', 'USA', 5510, 20, 'Americas GP — Championship / Technical'],
-    ['Circuito de Jerez – Ángel Nieto', 'Spain', 4420, 13, 'Spanish GP — Championship / Technical'],
-    ['Circuit Bugatti / Le Mans', 'France', 4190, 14, 'French GP — Championship / Stop-Go'],
-    ['Autodromo Internazionale del Mugello', 'Italy', 5250, 15, 'Italian GP — Championship / High Speed'],
-    ['Circuit de Barcelona-Catalunya', 'Spain', 4660, 14, 'Catalunya GP — Championship / Balanced'],
-    ['TT Circuit Assen', 'Netherlands', 4540, 18, 'Dutch GP — Championship / Flowing'],
-    ['Sachsenring', 'Germany', 3670, 13, 'German GP — Championship / Left-Heavy'],
-    ['Automotodrom Brno', 'Czechia', 5400, 14, 'Czechia GP — Championship / Flowing'],
-    ['Balaton Park Circuit', 'Hungary', 4080, 17, 'Hungarian GP — Championship / Technical'],
-    ['Silverstone Circuit', 'United Kingdom', 5900, 18, 'British GP — Championship / High Speed'],
-    ['Red Bull Ring – Spielberg', 'Austria', 4350, 10, 'Austrian GP — Championship / Power'],
-    ['MotorLand Aragón', 'Spain', 5080, 17, 'Aragón GP — Championship / High Speed'],
-    ['Misano World Circuit Marco Simoncelli', 'San Marino', 4230, 16, 'San Marino GP — Championship / Technical'],
-    ['Mobility Resort Motegi', 'Japan', 4800, 14, 'Japanese GP — Championship / Stop-Go'],
-    ['Chang International Circuit', 'Thailand', 4550, 12, 'Thai GP — Championship / Hot'],
-    ['Phillip Island Grand Prix Circuit', 'Australia', 4450, 12, 'Australian GP — Championship / High Speed'],
-    ['Circuito Ricardo Tormo / Valencia', 'Spain', 4010, 14, 'Valencia GP — Championship / Technical'],
-    ['Canterbury Park', 'United Kingdom', null, null, 'Training Track — Game-Exclusive'],
-    ['Borgo Caselle', 'Italy', null, null, 'Training Track — Fictional'],
-    ['Mont Lagard', 'France', null, null, 'Training Track — Fictional'],
+    ['Chang International Circuit', 'Thailand', 4554, 'Thai GP — Championship / Hot'],
+    ['Autódromo Internacional Ayrton Senna', 'Brazil', 3840, 'Brazilian GP — Championship (Goiânia)'],
+    ['Circuit of the Americas', 'United States', 5513, 'Americas GP — Championship / Technical'],
+    ['Circuito de Jerez', 'Spain', 4423, 'Spanish GP — Championship / Technical'],
+    ['Circuit Bugatti, Le Mans', 'France', 4185, 'French GP — Championship / Stop-Go'],
+    ['Circuit de Barcelona-Catalunya', 'Spain', 4657, 'Catalunya GP — Championship / Balanced'],
+    ['Mugello Circuit', 'Italy', 5245, 'Italian GP — Championship / High Speed'],
+    ['Balaton Park Circuit', 'Hungary', 4142, 'Hungarian GP — Championship / Technical'],
+    ['Brno Circuit', 'Czechia', 5403, 'Czechia GP — Championship / Flowing'],
+    ['TT Circuit Assen', 'Netherlands', 4542, 'Dutch GP — Championship / Flowing'],
+    ['Sachsenring Circuit', 'Germany', 3671, 'German GP — Championship / Left-Heavy'],
+    ['Silverstone Circuit', 'England', 5900, 'British GP — Championship / High Speed'],
+    ['MotorLand Aragón', 'Spain', 5077, 'Aragón GP — Championship / High Speed'],
+    ['Misano World Circuit Marco Simoncelli', 'Italy', 4226, 'San Marino GP — Championship / Technical'],
+    ['Red Bull Ring (Spielberg)', 'Austria', 4318, 'Austrian GP — Championship / Power'],
+    ['Mobility Resort Motegi', 'Japan', 4801, 'Japanese GP — Championship / Stop-Go'],
+    ['Pertamina Mandalika International Circuit', 'Indonesia', 4310, 'Indonesian GP — Championship'],
+    ['Phillip Island Grand Prix Circuit', 'Australia', 4445, 'Australian GP — Championship / High Speed'],
+    ['Sepang International Circuit', 'Malaysia', 5543, 'Malaysian GP — Championship'],
+    ['Lusail International Circuit', 'Qatar', 5380, 'Qatar GP — Championship / Night'],
+    ['Autódromo Internacional do Algarve', 'Portugal', 4592, 'Portuguese GP — Championship / Undulating (Portimão)'],
+    ['Circuit Ricardo Tormo, Valencia', 'Spain', 4005, 'Valencia GP — Championship / Technical'],
 ];
 
 $bikesByClass = [
@@ -83,16 +88,16 @@ $tyreCompounds = [
 ];
 
 $trackInsert = $pdo->prepare(
-    'INSERT INTO mg_tracks (name, country, length_m, medium_corners, notes)
-     VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO mg_tracks (name, country, length_m, notes)
+     VALUES (?, ?, ?, ?)',
 );
 $trackExists = $pdo->prepare('SELECT id FROM mg_tracks WHERE name = ?');
 
 $trackCount = 0;
-foreach ($tracks as [$name, $country, $lengthM, $corners, $notes]) {
+foreach ($tracks as [$name, $country, $lengthM, $notes]) {
     $trackExists->execute([$name]);
     if ($trackExists->fetchColumn()) continue;
-    $trackInsert->execute([$name, $country, $lengthM, $corners, $notes]);
+    $trackInsert->execute([$name, $country, $lengthM, $notes]);
     $trackCount++;
 }
 echo "Tracks seeded: $trackCount\n";

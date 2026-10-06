@@ -1,0 +1,426 @@
+{
+    "prompt_version": "1.0",
+    "track": {
+        "name": "Example Circuit",
+        "layout": "GP",
+        "length_m": 5148,
+        "direction": "CW",
+        "downforce_demand": "HIGH",
+        "bumpiness": 2,
+        "kerb_usage": 3,
+        "slow_corners": 5,
+        "medium_corners": 6,
+        "fast_corners": 4,
+        "longest_straight_m": 760
+    },
+    "conditions": {
+        "ambient_temp_c": 24,
+        "track_temp_c": 32.5,
+        "grip_pct": 98
+    },
+    "car": {
+        "name": "Example GT3",
+        "car_class": "GT3",
+        "drivetrain": "MR",
+        "total_mass_kg": 1300,
+        "front_weight_pct": 45,
+        "wheelbase_mm": 2700,
+        "track_front_mm": 1650,
+        "track_rear_mm": 1620,
+        "unsprung_front_kg": 45,
+        "unsprung_rear_kg": 50
+    },
+    "tire": {
+        "name": "Slick Medium",
+        "target_hot_psi_front": 27,
+        "target_hot_psi_rear": 27,
+        "temp_min_c": 80,
+        "temp_max_c": 95
+    },
+    "setup": {
+        "version": 3,
+        "purpose": "RACE",
+        "values": {
+            "car": {
+                "fuel_l": 40,
+                "brake_bias_front_pct": 58,
+                "arb_front": 60,
+                "arb_rear": 30,
+                "wing_rear": 6,
+                "diff_power_pct": 50,
+                "diff_coast_pct": 40,
+                "diff_preload_nm": 60,
+                "tc_level": 4,
+                "abs_level": 3
+            },
+            "corners": {
+                "FL": {
+                    "cold_psi": 23,
+                    "camber_deg": -3.5,
+                    "spring_rate": 150,
+                    "ride_height": 62,
+                    "slow_bump": 6,
+                    "slow_rebound": 8
+                },
+                "FR": {
+                    "cold_psi": 23,
+                    "camber_deg": -3.5,
+                    "spring_rate": 150,
+                    "ride_height": 62,
+                    "slow_bump": 6,
+                    "slow_rebound": 8
+                },
+                "RL": {
+                    "cold_psi": 22,
+                    "camber_deg": -2.8,
+                    "spring_rate": 130,
+                    "ride_height": 78,
+                    "slow_bump": 5,
+                    "slow_rebound": 7
+                },
+                "RR": {
+                    "cold_psi": 22,
+                    "camber_deg": -2.8,
+                    "spring_rate": 130,
+                    "ride_height": 78,
+                    "slow_bump": 5,
+                    "slow_rebound": 7
+                }
+            }
+        },
+        "adjustable": [
+            {
+                "param_key": "cold_psi",
+                "scope": "FRONT",
+                "min": 15,
+                "max": 35,
+                "step": 1,
+                "unit": "psi",
+                "higher_means": "more pressure"
+            },
+            {
+                "param_key": "cold_psi",
+                "scope": "REAR",
+                "min": 15,
+                "max": 35,
+                "step": 1,
+                "unit": "psi",
+                "higher_means": "more pressure"
+            },
+            {
+                "param_key": "camber_deg",
+                "scope": "FRONT",
+                "min": -5,
+                "max": -1,
+                "step": 0.1,
+                "unit": "deg",
+                "higher_means": "less negative camber"
+            },
+            {
+                "param_key": "camber_deg",
+                "scope": "REAR",
+                "min": -4,
+                "max": -0.5,
+                "step": 0.1,
+                "unit": "deg",
+                "higher_means": "less negative camber"
+            },
+            {
+                "param_key": "spring_rate",
+                "scope": "FRONT",
+                "min": 110,
+                "max": 190,
+                "step": 10,
+                "unit": "N/mm",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "spring_rate",
+                "scope": "REAR",
+                "min": 90,
+                "max": 170,
+                "step": 10,
+                "unit": "N/mm",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "ride_height",
+                "scope": "FRONT",
+                "min": 55,
+                "max": 80,
+                "step": 1,
+                "unit": "mm",
+                "higher_means": "higher"
+            },
+            {
+                "param_key": "ride_height",
+                "scope": "REAR",
+                "min": 60,
+                "max": 95,
+                "step": 1,
+                "unit": "mm",
+                "higher_means": "higher"
+            },
+            {
+                "param_key": "slow_bump",
+                "scope": "FRONT",
+                "min": 0,
+                "max": 12,
+                "step": 1,
+                "unit": "clicks",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "slow_bump",
+                "scope": "REAR",
+                "min": 0,
+                "max": 12,
+                "step": 1,
+                "unit": "clicks",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "slow_rebound",
+                "scope": "FRONT",
+                "min": 0,
+                "max": 12,
+                "step": 1,
+                "unit": "clicks",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "slow_rebound",
+                "scope": "REAR",
+                "min": 0,
+                "max": 12,
+                "step": 1,
+                "unit": "clicks",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "arb_front",
+                "scope": "CAR",
+                "min": 20,
+                "max": 100,
+                "step": 10,
+                "unit": "N/mm",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "arb_rear",
+                "scope": "CAR",
+                "min": 10,
+                "max": 70,
+                "step": 10,
+                "unit": "N/mm",
+                "higher_means": "stiffer"
+            },
+            {
+                "param_key": "wing_rear",
+                "scope": "CAR",
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "unit": "clicks",
+                "higher_means": "more downforce and drag"
+            },
+            {
+                "param_key": "brake_bias_front_pct",
+                "scope": "CAR",
+                "min": 50,
+                "max": 70,
+                "step": 0.5,
+                "unit": "%",
+                "higher_means": "more front braking"
+            },
+            {
+                "param_key": "diff_power_pct",
+                "scope": "CAR",
+                "min": 10,
+                "max": 90,
+                "step": 5,
+                "unit": "%",
+                "higher_means": "more lock on throttle"
+            },
+            {
+                "param_key": "diff_coast_pct",
+                "scope": "CAR",
+                "min": 10,
+                "max": 90,
+                "step": 5,
+                "unit": "%",
+                "higher_means": "more lock off throttle"
+            },
+            {
+                "param_key": "diff_preload_nm",
+                "scope": "CAR",
+                "min": 0,
+                "max": 150,
+                "step": 10,
+                "unit": "Nm",
+                "higher_means": "more preload"
+            },
+            {
+                "param_key": "tc_level",
+                "scope": "CAR",
+                "min": 0,
+                "max": 8,
+                "step": 1,
+                "unit": "level",
+                "higher_means": "more intervention"
+            }
+        ]
+    },
+    "computed": {
+        "sprung_mass_kg": {
+            "front_corner": 254.3,
+            "rear_corner": 315.8
+        },
+        "ride_frequency_hz": {
+            "front": 3.87,
+            "rear": 3.23
+        },
+        "roll_stiffness": {
+            "front_nm_per_deg": 6415,
+            "rear_nm_per_deg": 4351,
+            "front_share_pct": 59.6,
+            "neutral_reference_pct": 50
+        },
+        "rake": {
+            "delta_mm": 16,
+            "angle_deg": 0.34
+        },
+        "tires": {
+            "FL": {
+                "hot_psi": 27.2,
+                "target_hot_psi": 27,
+                "pressure": {
+                    "delta_psi": 0.2,
+                    "state": "OK"
+                },
+                "thermal": {
+                    "avg_c": 84.2,
+                    "spread_c": 8,
+                    "mid_delta_c": 0.5,
+                    "window": "OK",
+                    "camber": "OK",
+                    "crown": "OK"
+                }
+            },
+            "FR": {
+                "hot_psi": 28.7,
+                "target_hot_psi": 27,
+                "pressure": {
+                    "delta_psi": 1.7,
+                    "state": "HIGH"
+                },
+                "thermal": {
+                    "avg_c": 90,
+                    "spread_c": 16,
+                    "mid_delta_c": 3,
+                    "window": "OK",
+                    "camber": "TOO_MUCH_NEGATIVE",
+                    "crown": "CENTRE_HOT"
+                }
+            },
+            "RL": {
+                "hot_psi": 25.6,
+                "target_hot_psi": 27,
+                "pressure": {
+                    "delta_psi": -1.4,
+                    "state": "LOW"
+                },
+                "thermal": {
+                    "avg_c": 79.2,
+                    "spread_c": 5,
+                    "mid_delta_c": -1,
+                    "window": "COLD",
+                    "camber": "OK",
+                    "crown": "OK"
+                }
+            },
+            "RR": {
+                "hot_psi": 26.9,
+                "target_hot_psi": 27,
+                "pressure": {
+                    "delta_psi": -0.1,
+                    "state": "OK"
+                },
+                "thermal": {
+                    "avg_c": 82.8,
+                    "spread_c": 6.5,
+                    "mid_delta_c": 0.3,
+                    "window": "OK",
+                    "camber": "OK",
+                    "crown": "OK"
+                }
+            }
+        },
+        "tire_balance": {
+            "front_avg_c": 87.1,
+            "rear_avg_c": 81,
+            "front_minus_rear_c": 6.1,
+            "left_minus_right_c": -4.7
+        },
+        "pressure_corrections": [
+            {
+                "param_key": "cold_psi",
+                "scope": "FR",
+                "current_value": 23,
+                "suggested_value": 22,
+                "unit": "psi"
+            },
+            {
+                "param_key": "cold_psi",
+                "scope": "RL",
+                "current_value": 22,
+                "suggested_value": 23,
+                "unit": "psi"
+            }
+        ],
+        "laps": {
+            "count": 6,
+            "best_ms": 98345,
+            "mean_ms": 98838,
+            "median_ms": 98789,
+            "stdev_ms": 381
+        }
+    },
+    "feedback": [
+        {
+            "phase": "ENTRY",
+            "speed_range": "LOW",
+            "symptom": "OVERSTEER",
+            "severity": 4,
+            "corner_ref": "T1",
+            "note": "Rear steps out as I release the brake"
+        },
+        {
+            "phase": "EXIT",
+            "speed_range": "LOW",
+            "symptom": "TRACTION_LOSS",
+            "severity": 3,
+            "corner_ref": "final chicane",
+            "note": "Wheelspin on the inside rear"
+        }
+    ],
+    "history": [
+        {
+            "from_version": 2,
+            "to_version": 3,
+            "changes": [
+                {
+                    "param_key": "arb_rear",
+                    "scope": "CAR",
+                    "from": 40,
+                    "to": 30,
+                    "unit": "N/mm"
+                }
+            ],
+            "best_lap_delta_ms": -180,
+            "avg_lap_delta_ms": -95,
+            "conditions_comparable": true,
+            "driver_verdict": "Better mid-corner, entry still loose"
+        }
+    ]
+}

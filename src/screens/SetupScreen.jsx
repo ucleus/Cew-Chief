@@ -12,6 +12,7 @@ import {
   defaultChoicesFromOptions,
   defaultValuesFromParams,
 } from "../data/setupParams";
+import { suggestBaseline } from "../utils/motoMath";
 import { C } from "../styles/theme";
 
 const SetupScreen = ({ settings }) => {
@@ -33,6 +34,7 @@ const SetupScreen = ({ settings }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [baselineReasons, setBaselineReasons] = useState(null);
 
   useEffect(() => {
     TracksApi.list()
@@ -87,8 +89,18 @@ const SetupScreen = ({ settings }) => {
         change_summary: "Stock starting point",
         notes: "",
       });
+      setBaselineReasons(null);
     }
     setSaved(false);
+  };
+
+  const applyRecommendedBaseline = () => {
+    if (!bike || !track) return;
+    const { values, choices, reasons } = suggestBaseline({ bike, track });
+    setDraftValues((v) => ({ ...v, ...values }));
+    setDraftChoices((c) => ({ ...c, ...choices }));
+    setBaselineReasons(reasons);
+    setForm((f) => ({ ...f, change_summary: `Recommended starting point for ${track.name}` }));
   };
 
   const choiceOptions = useMemo(() => {
@@ -203,9 +215,23 @@ const SetupScreen = ({ settings }) => {
             {chainLoading ? (
               <Status color={C.ink3}>Loading saved setups...</Status>
             ) : chain.length === 0 ? (
-              <Status color={C.ink3}>
-                No saved setup yet for this bike and track — editing the stock baseline below.
-              </Status>
+              <>
+                <Status color={C.ink3}>
+                  No saved setup yet for this bike and track — editing the stock baseline below.
+                </Status>
+                <button type="button" className="hud-btn hud-btn--ghost" onClick={applyRecommendedBaseline} style={{ marginTop: "8px" }}>
+                  Use recommended starting point for this track
+                </button>
+                {baselineReasons && Object.keys(baselineReasons).length > 0 && (
+                  <div className="hud-stack" style={{ gap: "4px", marginTop: "8px" }}>
+                    {Object.entries(baselineReasons).map(([key, reason]) => (
+                      <p className="hud-text" key={key} style={{ color: C.ink2 }}>
+                        <b>{PARAM_LABELS[key] || CHOICE_LABELS[key] || key}:</b> {reason}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="hud-chips">
                 {chain.map((v) => (

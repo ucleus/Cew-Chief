@@ -71,3 +71,7 @@ export const RecommendationsApi = {
 export const RecItemsApi = {
   setAccepted: (id, accepted) => api.patch(`ac_rec_items.php?id=${id}`, { accepted }),
 };
+
+export const ComputeApi = {
+  run: (payload) => api.post("ac_compute.php", payload),
+};

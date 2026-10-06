@@ -1,0 +1,131 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnosis",
+    "confidence",
+    "data_quality_flags",
+    "adjustments",
+    "expected_tradeoff",
+    "next_stint_focus",
+    "unavailable_fixes"
+  ],
+  "properties": {
+    "diagnosis": {
+      "type": "string",
+      "description": "Root cause of the main handling problem, in two to four sentences, citing the readings and complaints that support it."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH"]
+    },
+    "data_quality_flags": {
+      "type": "array",
+      "description": "Reasons the data is weaker than it looks. Empty when there are none.",
+      "items": { "type": "string" }
+    },
+    "adjustments": {
+      "type": "array",
+      "description": "Pressure corrections first (priority 0, source MATH), then one primary change (priority 1) and up to three secondary changes (priority 2-4).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "priority",
+          "source",
+          "param_key",
+          "scope",
+          "current_value",
+          "suggested_value",
+          "unit",
+          "addresses",
+          "rationale",
+          "tradeoff"
+        ],
+        "properties": {
+          "priority": {
+            "type": "integer",
+            "description": "0 for calculator pressure corrections, 1 for the primary change, 2-4 for secondary changes."
+          },
+          "source": {
+            "type": "string",
+            "enum": ["MATH", "AI"]
+          },
+          "param_key": {
+            "type": "string",
+            "enum": [
+              "cold_psi",
+              "camber_deg",
+              "toe",
+              "spring_rate",
+              "ride_height",
+              "packer",
+              "bumpstop_rate",
+              "slow_bump",
+              "slow_rebound",
+              "fast_bump",
+              "fast_rebound",
+              "arb_front",
+              "arb_rear",
+              "caster_deg",
+              "wing_front",
+              "wing_rear",
+              "brake_bias_front_pct",
+              "brake_power_pct",
+              "brake_duct_front",
+              "brake_duct_rear",
+              "diff_power_pct",
+              "diff_coast_pct",
+              "diff_preload_nm",
+              "final_drive",
+              "tc_level",
+              "abs_level",
+              "engine_brake",
+              "turbo_boost_pct",
+              "fuel_l"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["FL", "FR", "RL", "RR", "FRONT", "REAR", "CAR"],
+            "description": "One wheel, both wheels on an axle, or the whole car."
+          },
+          "current_value": {
+            "type": "number",
+            "description": "Exactly as given in setup.values."
+          },
+          "suggested_value": {
+            "type": "number",
+            "description": "Absolute new value, within min/max and on the step grid from setup.adjustable."
+          },
+          "unit": { "type": "string" },
+          "addresses": {
+            "type": "string",
+            "description": "The complaint or reading this change targets, e.g. 'entry oversteer at T1' or 'FR hot pressure 1.7 psi high'."
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Why this change fixes it, in one or two sentences."
+          },
+          "tradeoff": {
+            "type": "string",
+            "description": "What the driver gives up."
+          }
+        }
+      }
+    },
+    "expected_tradeoff": {
+      "type": "string",
+      "description": "Net effect of the whole package on the car's behaviour."
+    },
+    "next_stint_focus": {
+      "type": "string",
+      "description": "What the driver should pay attention to and what data to record on the next run."
+    },
+    "unavailable_fixes": {
+      "type": "array",
+      "description": "Changes that would help but are not adjustable on this car. Empty when there are none.",
+      "items": { "type": "string" }
+    }
+  }
+}
