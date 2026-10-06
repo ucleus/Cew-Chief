@@ -112,7 +112,15 @@ step "Deploying the AC app to $SSH_HOST:$REMOTE_PATH/ac"
 rsync "${RSYNC_ARGS[@]}" -e "$RSYNC_SSH" "$PROJECT_DIR/ac/dist/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/ac/"
 
 step "Deploying the shared API to $SSH_HOST:$REMOTE_PATH/api"
-API_ARGS=("${RSYNC_ARGS[@]}" --exclude 'config.php')
+# Deliberately no --delete here: api/config.php holds the DB password and
+# lives only on the server. Excluding it from a --delete sync is NOT a
+# reliable guarantee — macOS's bundled rsync (actually Apple's openrsync,
+# despite the version string) has been observed deleting excluded files
+# anyway on a remote transfer even though a local-to-local transfer with
+# the identical flags protects them. Never add --delete back to this
+# specific sync; stale old endpoint files can be removed by hand.
+API_ARGS=(-az --human-readable --stats --itemize-changes --exclude '.DS_Store' --exclude 'config.php')
+[ "$DRY_RUN" -eq 1 ] && API_ARGS+=(--dry-run)
 rsync "${API_ARGS[@]}" -e "$RSYNC_SSH" "$PROJECT_DIR/api/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/api/"
 
 if [ "$DRY_RUN" -eq 1 ]; then
