@@ -10,11 +10,58 @@ import {
   PARAM_LABELS,
   SETUP_PURPOSE_OPTIONS,
   SETUP_SECTIONS,
+  SYMPTOM_SUGGESTIONS,
   defaultChoicesFromOptions,
   defaultValuesFromParams,
 } from "../data/setupParams";
+import { composeDriverProfileText } from "../data/driverProfile";
 import { suggestBaseline } from "../utils/motoMath";
 import { C } from "../styles/theme";
+
+const DIAGNOSE_MODEL = "claude-sonnet-4-6";
+
+function buildDiagnosePrompt({ bike, track, draftValues, draftChoices, problems, driverProfile }) {
+  const paramLines = bike.params
+    .map((p) => `- ${p.param_key}: current ${draftValues[p.param_key]} (range ${p.min_value}-${p.max_value}, step ${p.step_value})`)
+    .join("\n");
+  const tyreLines = CHOICE_PARAMS.map((key) => {
+    const current = bike.options.find((o) => o.id === draftChoices[key]);
+    const options = bike.options.filter((o) => o.param_key === key).map((o) => o.kind);
+    return `- ${key}: current ${current?.kind || "unset"} (choices: ${options.join(", ")})`;
+  }).join("\n");
+
+  const system = `You are the head race engineer and crew chief for a MotoGP team — world class, no-nonsense, technical. You speak directly, like a seasoned race engineer who has won multiple world championships. You do NOT coddle the rider. You give exact numbers within the allowed ranges, explain the physics, and tell them exactly what will happen if they don't follow the setup.
+
+This request has no session data — no lap times, no telemetry. You are working from the rider's description of the problem alone, plus their standing profile. Say so plainly if that limits your confidence.
+
+Always respond in this EXACT JSON format (no markdown, no extra text):
+{
+  "headline": "One brutal honest assessment sentence",
+  "diagnosis": "What the reported problem suggests, in technical detail",
+  "confidence": "LOW|MEDIUM|HIGH",
+  "expected_tradeoff": "What the rider gives up by taking this advice",
+  "items": [
+    {"priority": 1, "param_key": "<one of the numeric param_keys>", "kind": "NUM", "suggested_number": <int within its range>, "addresses": "<symptom this fixes>", "rationale": "<physics explanation>", "tradeoff": "<what gets worse>"},
+    {"priority": 2, "param_key": "tyre_front or tyre_rear", "kind": "CHOICE", "suggested_option": "SOFT|MEDIUM|HARD|WET", "addresses": "...", "rationale": "...", "tradeoff": "..."}
+  ],
+  "coach_notes": "A brutally honest, technically deep paragraph — what the rider MUST do next session"
+}
+Recommend one primary change and at most three secondary changes. Only include items worth changing. Stay strictly within each param's given range. With no session data, confidence should rarely be HIGH.`;
+
+  const user = `Bike: ${bike.name} (${bike.class}, ${bike.game})
+Track: ${track.name}, ${track.country || ""}
+
+Current setup:
+${paramLines}
+${tyreLines}
+
+Reported problem(s): ${problems.length ? problems.join("; ") : "none picked"}
+Driver profile (standing self-report): ${composeDriverProfileText(driverProfile) || "none given"}
+
+Diagnose the problem and give a championship-level setup correction, working from the current setup above.`;
+
+  return { system, user };
+}
 
 const SetupScreen = ({ settings }) => {
   const [tracks, setTracks] = useState([]);
@@ -36,6 +83,14 @@ const SetupScreen = ({ settings }) => {
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
   const [baselineReasons, setBaselineReasons] = useState(null);
+
+  const [problems, setProblems] = useState([]);
+  const [customProblem, setCustomProblem] = useState("");
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnoseError, setDiagnoseError] = useState("");
+  const [diagnoseResult, setDiagnoseResult] = useState(null);
+  const toggleProblem = (p) =>
+    setProblems((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
 
   useEffect(() => {
     TracksApi.list()
@@ -102,6 +157,80 @@ const SetupScreen = ({ settings }) => {
     setDraftChoices((c) => ({ ...c, ...choices }));
     setBaselineReasons(reasons);
     setForm((f) => ({ ...f, change_summary: `Recommended starting point for ${track.name}` }));
+  };
+
+  const runQuickDiagnose = async () => {
+    if (!bike || !track) return;
+    if (!settings?.apiKey) {
+      setDiagnoseError("Add your Anthropic API key in Settings first.");
+      return;
+    }
+    const allProblems = customProblem.trim() ? [...problems, customProblem.trim()] : problems;
+    if (!allProblems.length) {
+      setDiagnoseError("Pick or describe at least one problem.");
+      return;
+    }
+    setDiagnosing(true);
+    setDiagnoseError("");
+    try {
+      const { system, user } = buildDiagnosePrompt({
+        bike,
+        track,
+        draftValues,
+        draftChoices,
+        problems: allProblems,
+        driverProfile: settings?.driverProfile,
+      });
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": settings.apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: DIAGNOSE_MODEL,
+          max_tokens: 2000,
+          system,
+          messages: [{ role: "user", content: user }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+
+      const appliedItems = [];
+      for (const item of parsed.items || []) {
+        if (item.kind === "CHOICE") {
+          const option = bike.options.find((o) => o.param_key === item.param_key && o.kind === item.suggested_option);
+          if (!option) continue;
+          appliedItems.push({
+            ...item,
+            current_text: bike.options.find((o) => o.id === draftChoices[item.param_key])?.kind || "unset",
+            suggested_text: option.kind,
+          });
+          setDraftChoices((c) => ({ ...c, [item.param_key]: option.id }));
+        } else {
+          const meta = paramMeta[item.param_key];
+          if (!meta) continue;
+          const suggested = Math.min(Number(meta.max_value), Math.max(Number(meta.min_value), Number(item.suggested_number)));
+          appliedItems.push({
+            ...item,
+            current_text: String(draftValues[item.param_key] ?? ""),
+            suggested_text: String(suggested),
+          });
+          setDraftValues((v) => ({ ...v, [item.param_key]: suggested }));
+        }
+      }
+
+      setDiagnoseResult({ ...parsed, items: appliedItems });
+      setForm((f) => ({ ...f, change_summary: parsed.headline || `Diagnosed: ${allProblems.join(", ")}` }));
+    } catch (e) {
+      setDiagnoseError(e.message);
+    }
+    setDiagnosing(false);
   };
 
   const choiceOptions = useMemo(() => {
@@ -253,6 +382,68 @@ const SetupScreen = ({ settings }) => {
 
         {bike && selectedTrackId && (
           <>
+            <Panel title="Quick Diagnose" tone="or" icon={<Icon name="zap" size={14} color={C.orange} />} className="span-full">
+              <div className="hud-body">
+                <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+                  No session needed — pick what's wrong and the Crew Chief will adjust the setup
+                  below directly. Less certain than a debrief grounded in real lap data (History
+                  tab, after you've logged a session), but faster.
+                </p>
+                <div className="hud-chips">
+                  {SYMPTOM_SUGGESTIONS.map((p) => (
+                    <button
+                      type="button"
+                      key={p}
+                      className="hud-chip"
+                      aria-pressed={problems.includes(p)}
+                      onClick={() => toggleProblem(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="hud-input"
+                  value={customProblem}
+                  onChange={(e) => setCustomProblem(e.target.value)}
+                  placeholder="Describe anything else — e.g. 'I can't hold my line through Turn 9'"
+                  style={{ marginTop: "8px" }}
+                />
+                <button type="button" className="hud-btn hud-btn--cyan" onClick={runQuickDiagnose} disabled={diagnosing} style={{ marginTop: "8px" }}>
+                  <Icon name="zap" size={16} color={C.ink} />
+                  {diagnosing ? "Engineer is thinking..." : "Ask Crew Chief"}
+                </button>
+                {diagnoseError && <Status color={C.orange}>{diagnoseError}</Status>}
+              </div>
+
+              {diagnoseResult && (
+                <div className="hud-body hud-stack" style={{ gap: "8px" }}>
+                  <div className="hud-fix hud-fix--high">
+                    <div className="hud-fix__head">
+                      <span className="hud-tag">{diagnoseResult.confidence}</span>
+                    </div>
+                    <p className="hud-text">{diagnoseResult.diagnosis}</p>
+                    {diagnoseResult.expected_tradeoff && (
+                      <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {diagnoseResult.expected_tradeoff}</p>
+                    )}
+                  </div>
+                  {diagnoseResult.items.map((item, i) => (
+                    <div className="hud-fix" key={i}>
+                      <div className="hud-fix__head">
+                        <span className="hud-tag">{PARAM_LABELS[item.param_key] || CHOICE_LABELS[item.param_key] || item.param_key}</span>
+                        <span>{item.current_text} → {item.suggested_text}</span>
+                      </div>
+                      <p className="hud-text">{item.rationale}</p>
+                      {item.tradeoff && <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {item.tradeoff}</p>}
+                    </div>
+                  ))}
+                  <p className="hud-text" style={{ color: C.ink2 }}>
+                    Applied to the setup below — adjust anything you want, then Save as New Version.
+                  </p>
+                </div>
+              )}
+            </Panel>
+
             {SETUP_SECTIONS.map((section) => (
               <Panel key={section.key} title={section.label} className="sm-full lg-2">
                 <div className="hud-body hud-form">

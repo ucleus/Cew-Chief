@@ -12,15 +12,68 @@ import {
   CORNER_LABELS,
   CORNER_PARAM_LABELS,
   CORNER_PARAM_SECTIONS,
+  FEEDBACK_SYMPTOMS,
   SETUP_PURPOSE_OPTIONS,
   defaultCarValues,
   defaultCornerValues,
   rangesByScope,
 } from "../data/acParams";
-import { applyDriverProfileNudges } from "../data/driverProfile";
+import { applyDriverProfileNudges, composeDriverProfileText } from "../data/driverProfile";
+import { ComputeApi } from "../api/client";
+import PhysicsCompareChart from "../components/garage/PhysicsCompareChart";
 import { C } from "../styles/theme";
 
 const CAR_KEYS = CAR_PARAM_SECTIONS.flatMap((s) => s.params);
+const DIAGNOSE_MODEL = "claude-sonnet-4-6";
+const labelFor = (paramKey) => CAR_PARAM_LABELS[paramKey] || CORNER_PARAM_LABELS[paramKey] || paramKey;
+
+function buildAdjustable(car) {
+  return (car.ranges || []).map((r) => ({
+    param_key: r.param_key,
+    scope: r.scope,
+    min: Number(r.min_value),
+    max: Number(r.max_value),
+    step: Number(r.step_value),
+    unit: r.unit,
+    higher_means: r.higher_means,
+  }));
+}
+
+function buildDiagnosePrompt({ car, track, draftCar, draftCorners, problems, driverProfile }) {
+  const system = `You are the race engineer for a sim racing team running Assetto Corsa (the original Kunos title, not Assetto Corsa Competizione). This request has no stint data — no lap times, no tire temps, no telemetry. You are working from the driver's description of the problem alone, plus their standing profile. Say so plainly if that limits your confidence.
+
+Only recommend settings listed in adjustable. Every suggested_value must sit between min and max and on the step grid, in the unit given. Give absolute values, never deltas — report current_value exactly as given and state the new suggested_value. Read higher_means before deciding direction. Recommend one primary change and at most three secondary changes. With no stint data, confidence should rarely be HIGH.
+
+Respond with a single JSON object and nothing else: no markdown, no code fences. The object must have exactly these fields:
+{
+  "diagnosis": "string, two to four sentences",
+  "confidence": "LOW" | "MEDIUM" | "HIGH",
+  "expected_tradeoff": "string, net effect of the whole package",
+  "adjustments": [
+    {"priority": 1, "param_key": "string, from adjustable", "scope": "FL|FR|RL|RR|FRONT|REAR|CAR", "current_value": number, "suggested_value": number, "unit": "string", "addresses": "string", "rationale": "string", "tradeoff": "string"}
+  ]
+}`;
+
+  const carValues = {};
+  for (const key of CAR_KEYS) carValues[key] = draftCar[key];
+
+  const user = JSON.stringify({
+    car: { name: car.name, car_class: car.car_class, drivetrain: car.drivetrain },
+    track: { name: track.name, downforce_demand: track.downforce_demand, bumpiness: track.bumpiness },
+    setup: { values: { car: carValues, corners: draftCorners }, adjustable: buildAdjustable(car) },
+    problems,
+    driver_profile: composeDriverProfileText(driverProfile) || "none given",
+  });
+
+  return { system, user };
+}
+
+function currentValueFor(item, draftCar, draftCorners) {
+  if (item.scope === "CAR") return draftCar[item.param_key];
+  if (["FL", "FR", "RL", "RR"].includes(item.scope)) return draftCorners[item.scope]?.[item.param_key];
+  const corner = item.scope === "FRONT" ? "FL" : "RL";
+  return draftCorners[corner]?.[item.param_key];
+}
 
 const GarageScreen = ({ settings }) => {
   const [car, setCar] = useState(null);
@@ -45,6 +98,16 @@ const GarageScreen = ({ settings }) => {
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
   const [baselineReasons, setBaselineReasons] = useState(null);
+
+  const [problems, setProblems] = useState([]);
+  const [customProblem, setCustomProblem] = useState("");
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnoseError, setDiagnoseError] = useState("");
+  const [diagnoseResult, setDiagnoseResult] = useState(null);
+  const [physicsBefore, setPhysicsBefore] = useState(null);
+  const [physicsAfter, setPhysicsAfter] = useState(null);
+  const toggleProblem = (p) =>
+    setProblems((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
 
   useEffect(() => {
     TracksApi.list().then(setTracks).catch((e) => setCarError(e.message));
@@ -122,6 +185,73 @@ const GarageScreen = ({ settings }) => {
 
   const updateCorner = (corner, key, value) =>
     setDraftCorners((prev) => ({ ...prev, [corner]: { ...prev[corner], [key]: value } }));
+
+  const runQuickDiagnose = async () => {
+    if (!car || !track) return;
+    if (!settings?.apiKey) {
+      setDiagnoseError("Add your Anthropic API key in Settings first.");
+      return;
+    }
+    const allProblems = customProblem.trim() ? [...problems, customProblem.trim()] : problems;
+    if (!allProblems.length) {
+      setDiagnoseError("Pick or describe at least one problem.");
+      return;
+    }
+    setDiagnosing(true);
+    setDiagnoseError("");
+    try {
+      const beforeSetup = { fuel_l: fuelL, arb_front: draftCar.arb_front, arb_rear: draftCar.arb_rear, corners: draftCorners };
+      const before = await ComputeApi.run({ car, setup: beforeSetup, compound: null, stint: null });
+
+      const { system, user } = buildDiagnosePrompt({ car, track, draftCar, draftCorners, problems: allProblems, driverProfile: settings?.driverProfile });
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": settings.apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({ model: DIAGNOSE_MODEL, max_tokens: 2000, system, messages: [{ role: "user", content: user }] }),
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+
+      const nextCar = { ...draftCar };
+      const nextCorners = Object.fromEntries(Object.entries(draftCorners).map(([k, v]) => [k, { ...v }]));
+      const appliedItems = [];
+
+      for (const item of parsed.adjustments || []) {
+        const current = currentValueFor(item, draftCar, draftCorners);
+        if (current == null) continue;
+        appliedItems.push({ ...item, current_value: current });
+
+        if (item.scope === "CAR") {
+          nextCar[item.param_key] = item.suggested_value;
+        } else if (["FL", "FR", "RL", "RR"].includes(item.scope)) {
+          nextCorners[item.scope][item.param_key] = item.suggested_value;
+        } else {
+          const pair = item.scope === "FRONT" ? ["FL", "FR"] : ["RL", "RR"];
+          for (const corner of pair) nextCorners[corner][item.param_key] = item.suggested_value;
+        }
+      }
+
+      const afterSetup = { fuel_l: fuelL, arb_front: nextCar.arb_front, arb_rear: nextCar.arb_rear, corners: nextCorners };
+      const after = await ComputeApi.run({ car, setup: afterSetup, compound: null, stint: null });
+
+      setDraftCar(nextCar);
+      setDraftCorners(nextCorners);
+      setDiagnoseResult({ ...parsed, items: appliedItems });
+      setPhysicsBefore(before);
+      setPhysicsAfter(after);
+      setForm((f) => ({ ...f, change_summary: parsed.diagnosis?.slice(0, 120) || `Diagnosed: ${allProblems.join(", ")}` }));
+    } catch (e) {
+      setDiagnoseError(e.message);
+    }
+    setDiagnosing(false);
+  };
 
   const addGear = () => setGearRatios((g) => [...g, ""]);
   const updateGear = (i, value) => setGearRatios((g) => g.map((v, idx) => (idx === i ? value : v)));
@@ -248,6 +378,69 @@ const GarageScreen = ({ settings }) => {
 
         {car && selectedTrackId && (
           <>
+            <Panel title="Quick Diagnose" tone="or" icon={<Icon name="zap" size={14} color={C.orange} />} className="span-full">
+              <div className="hud-body">
+                <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+                  No stint needed — pick what's wrong and the Crew Chief will adjust the setup
+                  below directly. Less certain than a debrief grounded in real stint data (History
+                  tab, after you've logged a stint), but faster.
+                </p>
+                <div className="hud-chips">
+                  {FEEDBACK_SYMPTOMS.map((s) => (
+                    <button
+                      type="button"
+                      key={s}
+                      className="hud-chip"
+                      aria-pressed={problems.includes(s)}
+                      onClick={() => toggleProblem(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="hud-input"
+                  value={customProblem}
+                  onChange={(e) => setCustomProblem(e.target.value)}
+                  placeholder="Describe anything else — e.g. 'Can't hold the line through the final chicane'"
+                  style={{ marginTop: "8px" }}
+                />
+                <button type="button" className="hud-btn hud-btn--cyan" onClick={runQuickDiagnose} disabled={diagnosing} style={{ marginTop: "8px" }}>
+                  <Icon name="zap" size={16} color={C.ink} />
+                  {diagnosing ? "Engineer is thinking..." : "Ask Crew Chief"}
+                </button>
+                {diagnoseError && <Status color={C.orange}>{diagnoseError}</Status>}
+              </div>
+
+              {diagnoseResult && (
+                <div className="hud-body hud-stack" style={{ gap: "8px" }}>
+                  <div className="hud-fix hud-fix--high">
+                    <div className="hud-fix__head">
+                      <span className="hud-tag">{diagnoseResult.confidence}</span>
+                    </div>
+                    <p className="hud-text">{diagnoseResult.diagnosis}</p>
+                    {diagnoseResult.expected_tradeoff && (
+                      <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {diagnoseResult.expected_tradeoff}</p>
+                    )}
+                  </div>
+                  {diagnoseResult.items.map((item, i) => (
+                    <div className="hud-fix" key={i}>
+                      <div className="hud-fix__head">
+                        <span className="hud-tag">[{item.scope}] {labelFor(item.param_key)}</span>
+                        <span>{item.current_value}{item.unit} → {item.suggested_value}{item.unit}</span>
+                      </div>
+                      <p className="hud-text">{item.rationale}</p>
+                      {item.tradeoff && <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {item.tradeoff}</p>}
+                    </div>
+                  ))}
+                  {(physicsBefore || physicsAfter) && <PhysicsCompareChart before={physicsBefore} after={physicsAfter} />}
+                  <p className="hud-text" style={{ color: C.ink2 }}>
+                    Applied to the setup below — adjust anything you want, then Save as New Version.
+                  </p>
+                </div>
+              )}
+            </Panel>
+
             <Panel title="Tyres, Fuel & Compound" className="span-full">
               <div className="hud-body hud-form">
                 <div className="hud-field">

@@ -105,9 +105,3 @@ What it adds over the MotoGP app:
   is shown directly in History as a free preview, and is also handed to the
   AI debrief as anchor values — items the AI leaves unchanged stay tagged
   MATH, items it overrides get tagged AI, matching recommendation_items.source.
-
-dbname: 
-dbuser: u652263477_team1986
-dbpass: 'R8XpW!Y9o'
-
-php -r 'require "config.php"; $pdo = new PDO(sprintf("mysql:host=%s;dbname=%s;charset=utf8mb4", DB_HOST, DB_NAME), DB_USER, DB_PASS); $pdo->exec("DELETE FROM mg_tracks");'
