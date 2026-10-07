@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
+import NumberStepper from "../components/ui/NumberStepper";
 import { CarsApi, SetupsApi, TracksApi } from "../api/client";
 import {
   AXLE_OF_CORNER,
@@ -237,13 +238,12 @@ const GarageScreen = ({ settings }) => {
                 </div>
                 <div className="hud-field">
                   <label className="hud-label" htmlFor="fuel-l">Fuel Load (L)</label>
-                  <input
+                  <NumberStepper
                     id="fuel-l"
-                    className="hud-input"
-                    type="number"
-                    step="0.5"
+                    step={0.5}
+                    min={0}
                     value={fuelL}
-                    onChange={(e) => setFuelL(e.target.value)}
+                    onChange={(v) => setFuelL(v)}
                   />
                 </div>
               </div>
@@ -261,14 +261,12 @@ const GarageScreen = ({ settings }) => {
                           <label className="hud-label" style={{ fontSize: "10px" }}>
                             {CORNER_PARAM_LABELS[key]} {range ? `(${range.unit})` : ""}
                           </label>
-                          <input
-                            className="hud-input"
-                            type="number"
+                          <NumberStepper
                             min={range?.min_value}
                             max={range?.max_value}
                             step={range?.step_value || 1}
                             value={draftCorners[corner]?.[key] ?? ""}
-                            onChange={(e) => updateCorner(corner, key, e.target.value === "" ? "" : Number(e.target.value))}
+                            onChange={(v) => updateCorner(corner, key, v)}
                           />
                         </div>
                       );
@@ -288,16 +286,12 @@ const GarageScreen = ({ settings }) => {
                         <label className="hud-label">
                           {CAR_PARAM_LABELS[key]} {range ? `(${range.unit})` : ""}
                         </label>
-                        <input
-                          className="hud-input"
-                          type="number"
+                        <NumberStepper
                           min={range?.min_value}
                           max={range?.max_value}
                           step={range?.step_value || 1}
                           value={draftCar[key] ?? ""}
-                          onChange={(e) =>
-                            setDraftCar((c) => ({ ...c, [key]: e.target.value === "" ? "" : Number(e.target.value) }))
-                          }
+                          onChange={(v) => setDraftCar((c) => ({ ...c, [key]: v }))}
                         />
                       </div>
                     );
@@ -310,13 +304,12 @@ const GarageScreen = ({ settings }) => {
               <div className="hud-body hud-form">
                 <div className="hud-field">
                   <label className="hud-label" htmlFor="final-drive">Final Drive</label>
-                  <input
+                  <NumberStepper
                     id="final-drive"
-                    className="hud-input"
-                    type="number"
-                    step="0.01"
+                    step={0.01}
+                    min={0}
                     value={finalDrive}
-                    onChange={(e) => setFinalDrive(e.target.value)}
+                    onChange={(v) => setFinalDrive(v)}
                   />
                 </div>
               </div>
@@ -324,12 +317,10 @@ const GarageScreen = ({ settings }) => {
                 {gearRatios.map((ratio, i) => (
                   <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                     <span className="hud-status" style={{ minWidth: "48px" }}>Gear {i + 1}</span>
-                    <input
-                      className="hud-input"
-                      type="number"
-                      step="0.001"
+                    <NumberStepper
+                      step={0.001}
                       value={ratio}
-                      onChange={(e) => updateGear(i, e.target.value)}
+                      onChange={(v) => updateGear(i, v)}
                     />
                     <button type="button" className="hud-link" onClick={() => removeGear(i)} aria-label="Remove gear">
                       ✕

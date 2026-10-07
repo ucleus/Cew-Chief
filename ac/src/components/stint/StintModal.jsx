@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CustomSelect from "../ui/CustomSelect";
 import Icon from "../ui/Icon";
 import { Panel, Status } from "../ui/Hud";
+import NumberStepper from "../ui/NumberStepper";
 import { CarsApi, DriversApi, SetupsApi, TracksApi } from "../../api/client";
 import {
   CORNERS,
@@ -232,40 +233,40 @@ const StintModal = ({ settings, onClose, onSave }) => {
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-ambient">Ambient °C *</label>
-            <input id="stint-ambient" className="hud-input" type="number" step="0.5" value={form.ambient_temp_c} onChange={(e) => set("ambient_temp_c", e.target.value)} />
+            <NumberStepper id="stint-ambient" step={0.5} value={form.ambient_temp_c} onChange={(v) => set("ambient_temp_c", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-tracktemp">Track °C *</label>
-            <input id="stint-tracktemp" className="hud-input" type="number" step="0.5" value={form.track_temp_c} onChange={(e) => set("track_temp_c", e.target.value)} />
+            <NumberStepper id="stint-tracktemp" step={0.5} value={form.track_temp_c} onChange={(v) => set("track_temp_c", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-grip">Track Grip %</label>
-            <input id="stint-grip" className="hud-input" type="number" step="0.5" value={form.grip_pct} onChange={(e) => set("grip_pct", e.target.value)} />
+            <NumberStepper id="stint-grip" step={0.5} min={0} max={100} value={form.grip_pct} onChange={(v) => set("grip_pct", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-topspeed">Top Speed km/h</label>
-            <input id="stint-topspeed" className="hud-input" type="number" value={form.top_speed_kmh} onChange={(e) => set("top_speed_kmh", e.target.value)} />
+            <NumberStepper id="stint-topspeed" min={0} value={form.top_speed_kmh} onChange={(v) => set("top_speed_kmh", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-fuelstart">Fuel Start (L)</label>
-            <input id="stint-fuelstart" className="hud-input" type="number" step="0.5" value={form.fuel_start_l} onChange={(e) => set("fuel_start_l", e.target.value)} />
+            <NumberStepper id="stint-fuelstart" step={0.5} min={0} value={form.fuel_start_l} onChange={(v) => set("fuel_start_l", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-fuelend">Fuel End (L)</label>
-            <input id="stint-fuelend" className="hud-input" type="number" step="0.5" value={form.fuel_end_l} onChange={(e) => set("fuel_end_l", e.target.value)} />
+            <NumberStepper id="stint-fuelend" step={0.5} min={0} value={form.fuel_end_l} onChange={(v) => set("fuel_end_l", v)} />
           </div>
 
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-lapcount">Lap Count</label>
-            <input id="stint-lapcount" className="hud-input" type="number" value={form.lap_count} onChange={(e) => set("lap_count", e.target.value)} placeholder="Used if no laps logged below" />
+            <NumberStepper id="stint-lapcount" min={0} value={form.lap_count} onChange={(v) => set("lap_count", v)} placeholder="Used if no laps logged below" />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-best">Best Lap (s)</label>
-            <input id="stint-best" className="hud-input" type="number" step="0.001" value={form.best_lap_s} onChange={(e) => set("best_lap_s", e.target.value)} />
+            <NumberStepper id="stint-best" step={0.001} min={0} value={form.best_lap_s} onChange={(v) => set("best_lap_s", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="stint-avg">Avg Lap (s)</label>
-            <input id="stint-avg" className="hud-input" type="number" step="0.001" value={form.avg_lap_s} onChange={(e) => set("avg_lap_s", e.target.value)} />
+            <NumberStepper id="stint-avg" step={0.001} min={0} value={form.avg_lap_s} onChange={(v) => set("avg_lap_s", v)} />
           </div>
 
           <div className="hud-field wide">
@@ -274,7 +275,7 @@ const StintModal = ({ settings, onClose, onSave }) => {
               {laps.map((lap, i) => (
                 <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <span className="hud-status" style={{ minWidth: "28px" }}>#{lap.lap_no}</span>
-                  <input className="hud-input" type="number" step="0.001" value={lap.lap_s} onChange={(e) => updateLap(i, { lap_s: e.target.value })} placeholder="seconds" />
+                  <NumberStepper step={0.001} min={0} value={lap.lap_s} onChange={(v) => updateLap(i, { lap_s: v })} placeholder="seconds" />
                   <label style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "11px", color: C.ink2 }}>
                     <input type="checkbox" checked={lap.is_valid} onChange={(e) => updateLap(i, { is_valid: e.target.checked })} />
                     valid
@@ -303,12 +304,10 @@ const StintModal = ({ settings, onClose, onSave }) => {
                   ].map(([key, label]) => (
                     <div className="hud-field" key={key} style={{ marginBottom: "4px" }}>
                       <label className="hud-label" style={{ fontSize: "10px" }}>{label}</label>
-                      <input
-                        className="hud-input"
-                        type="number"
-                        step="0.1"
+                      <NumberStepper
+                        step={0.1}
                         value={tires[corner][key]}
-                        onChange={(e) => updateTire(corner, key, e.target.value)}
+                        onChange={(v) => updateTire(corner, key, v)}
                       />
                     </div>
                   ))}

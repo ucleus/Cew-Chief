@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
+import NumberStepper from "../components/ui/NumberStepper";
 import { CarsApi } from "../api/client";
 import { DRIVETRAIN_OPTIONS } from "../data/acParams";
 import { C } from "../styles/theme";
@@ -205,12 +206,11 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
               {["total_mass_kg", "front_weight_pct", "wheelbase_mm", "track_front_mm", "track_rear_mm", "fuel_tank_l"].map((key) => (
                 <div className="hud-field" key={key}>
                   <label className="hud-label" htmlFor={`imp-${key}`}>{key.replace(/_/g, " ")}</label>
-                  <input
+                  <NumberStepper
                     id={`imp-${key}`}
-                    className="hud-input"
-                    type="number"
+                    min={0}
                     value={importCar[key]}
-                    onChange={(e) => setImportCar((c) => ({ ...c, [key]: e.target.value }))}
+                    onChange={(v) => setImportCar((c) => ({ ...c, [key]: v }))}
                   />
                 </div>
               ))}

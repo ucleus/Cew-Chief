@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
+import NumberStepper from "../components/ui/NumberStepper";
 import { BikesApi, SetupsApi, TracksApi } from "../api/client";
 import {
   CHOICE_LABELS,
@@ -263,17 +264,13 @@ const SetupScreen = ({ settings }) => {
                         <label className="hud-label" htmlFor={`param-${key}`}>
                           {PARAM_LABELS[key] || key}
                         </label>
-                        <input
+                        <NumberStepper
                           id={`param-${key}`}
-                          className="hud-input"
-                          type="number"
                           min={meta.min_value}
                           max={meta.max_value}
                           step={meta.step_value}
                           value={draftValues[key] ?? ""}
-                          onChange={(e) =>
-                            setDraftValues((v) => ({ ...v, [key]: Number(e.target.value) }))
-                          }
+                          onChange={(v) => setDraftValues((cur) => ({ ...cur, [key]: v }))}
                         />
                         <span className="hud-status" style={{ color: C.ink3 }}>
                           {meta.min_value}–{meta.max_value}

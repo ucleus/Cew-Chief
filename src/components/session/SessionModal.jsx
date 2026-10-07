@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import CustomSelect from "../ui/CustomSelect";
 import Icon from "../ui/Icon";
 import { Panel, Status } from "../ui/Hud";
+import NumberStepper from "../ui/NumberStepper";
 import { BikesApi, SetupsApi, TracksApi } from "../../api/client";
 import {
   FEEDBACK_CORNER_TYPES,
@@ -222,69 +223,61 @@ const SessionModal = ({ settings, onClose, onSave }) => {
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-ambient">Ambient °C</label>
-            <input
+            <NumberStepper
               id="sess-ambient"
-              className="hud-input"
-              type="number"
-              step="0.5"
+              step={0.5}
               value={form.ambient_temp_c}
-              onChange={(e) => set("ambient_temp_c", e.target.value)}
+              onChange={(v) => set("ambient_temp_c", v)}
             />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-track-temp">Track °C</label>
-            <input
+            <NumberStepper
               id="sess-track-temp"
-              className="hud-input"
-              type="number"
-              step="0.5"
+              step={0.5}
               value={form.track_temp_c}
-              onChange={(e) => set("track_temp_c", e.target.value)}
+              onChange={(v) => set("track_temp_c", v)}
             />
           </div>
 
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-lapcount">Lap Count</label>
-            <input
+            <NumberStepper
               id="sess-lapcount"
-              className="hud-input"
-              type="number"
+              min={0}
               value={form.lap_count}
-              onChange={(e) => set("lap_count", e.target.value)}
+              onChange={(v) => set("lap_count", v)}
               placeholder="Used if no laps logged below"
             />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-racelaps">Race Laps Planned</label>
-            <input
+            <NumberStepper
               id="sess-racelaps"
-              className="hud-input"
-              type="number"
+              min={0}
               value={form.race_laps}
-              onChange={(e) => set("race_laps", e.target.value)}
+              onChange={(v) => set("race_laps", v)}
             />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-best">Best Lap (s)</label>
-            <input
+            <NumberStepper
               id="sess-best"
-              className="hud-input"
-              type="number"
-              step="0.001"
+              step={0.001}
+              min={0}
               value={form.best_lap_s}
-              onChange={(e) => set("best_lap_s", e.target.value)}
+              onChange={(v) => set("best_lap_s", v)}
               placeholder="e.g. 92.456"
             />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-avg">Avg Lap (s)</label>
-            <input
+            <NumberStepper
               id="sess-avg"
-              className="hud-input"
-              type="number"
-              step="0.001"
+              step={0.001}
+              min={0}
               value={form.avg_lap_s}
-              onChange={(e) => set("avg_lap_s", e.target.value)}
+              onChange={(v) => set("avg_lap_s", v)}
             />
           </div>
 
@@ -294,12 +287,11 @@ const SessionModal = ({ settings, onClose, onSave }) => {
               {laps.map((lap, i) => (
                 <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <span className="hud-status" style={{ minWidth: "28px" }}>#{lap.lap_no}</span>
-                  <input
-                    className="hud-input"
-                    type="number"
-                    step="0.001"
+                  <NumberStepper
+                    step={0.001}
+                    min={0}
                     value={lap.lap_s}
-                    onChange={(e) => updateLap(i, { lap_s: e.target.value })}
+                    onChange={(v) => updateLap(i, { lap_s: v })}
                     placeholder="seconds"
                   />
                   <label style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "11px", color: C.ink2 }}>
@@ -331,11 +323,11 @@ const SessionModal = ({ settings, onClose, onSave }) => {
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-fwear">Front Wear %</label>
-            <input id="sess-fwear" className="hud-input" type="number" step="0.5" value={form.tyre_front_wear_pct} onChange={(e) => set("tyre_front_wear_pct", e.target.value)} />
+            <NumberStepper id="sess-fwear" step={0.5} min={0} max={100} value={form.tyre_front_wear_pct} onChange={(v) => set("tyre_front_wear_pct", v)} />
           </div>
           <div className="hud-field">
             <label className="hud-label" htmlFor="sess-rwear">Rear Wear %</label>
-            <input id="sess-rwear" className="hud-input" type="number" step="0.5" value={form.tyre_rear_wear_pct} onChange={(e) => set("tyre_rear_wear_pct", e.target.value)} />
+            <NumberStepper id="sess-rwear" step={0.5} min={0} max={100} value={form.tyre_rear_wear_pct} onChange={(v) => set("tyre_rear_wear_pct", v)} />
           </div>
           <div className="hud-field">
             <span className="hud-label">Front Brake Temp</span>

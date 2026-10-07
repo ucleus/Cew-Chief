@@ -685,6 +685,60 @@ textarea.hud-input {
   font-size: 14px;
 }
 
+/* Number stepper: [-][ input ][+] */
+.hud-stepper {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.hud-stepper__input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.hud-stepper__input::-webkit-outer-spin-button,
+.hud-stepper__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.hud-stepper__input {
+  -moz-appearance: textfield;
+}
+
+.hud-stepper__btn {
+  flex: 0 0 40px;
+  min-width: 40px;
+  min-height: 44px;
+  border: 1px solid var(--well-line);
+  background: var(--slab-2);
+  color: var(--ink);
+  font-family: var(--font-d);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.hud-stepper__btn:hover:not(:disabled) {
+  border-color: var(--cy);
+  color: var(--cy);
+}
+
+.hud-stepper__btn:active:not(:disabled) {
+  background: var(--cy);
+  color: var(--bg);
+}
+
+.hud-stepper__btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .hud-field {
   min-width: 0;
 }
