@@ -97,7 +97,7 @@ const SetupScreen = ({ settings }) => {
 
   const applyRecommendedBaseline = () => {
     if (!bike || !track) return;
-    const { values, choices, reasons } = suggestBaseline({ bike, track });
+    const { values, choices, reasons } = suggestBaseline({ bike, track, driverProfile: settings?.driverProfile });
     setDraftValues((v) => ({ ...v, ...values }));
     setDraftChoices((c) => ({ ...c, ...choices }));
     setBaselineReasons(reasons);

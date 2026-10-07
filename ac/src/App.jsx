@@ -6,7 +6,7 @@ import HistoryScreen from "./screens/HistoryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import GarageScreen from "./screens/GarageScreen";
-import { StintsApi } from "./api/client";
+import { DriversApi, StintsApi } from "./api/client";
 import { C } from "./styles/theme";
 
 export default function App() {
@@ -38,9 +38,15 @@ export default function App() {
     refreshStints();
   }, [refreshStints]);
 
-  const handleLogin = (driverData) => {
+  const handleLogin = async (driverData) => {
     setDriver(driverData);
     setScreen("app");
+    try {
+      const dbDriver = await DriversApi.findOrCreate(driverData.name);
+      setDriver((d) => ({ ...d, driverId: dbDriver.id, styleNotes: dbDriver.style_notes }));
+    } catch {
+      // Driver profile editing just won't be available this session; local login still works.
+    }
   };
 
   const handleSaveSettings = (s) => {
@@ -111,7 +117,12 @@ export default function App() {
           <HistoryScreen settings={settings} stints={stints} onSetupApplied={refreshStints} />
         )}
         {activeTab === "settings" && (
-          <SettingsScreen settings={settings} onSave={handleSaveSettings} onBack={() => setActiveTab("dashboard")} />
+          <SettingsScreen
+            settings={settings}
+            driver={driver}
+            onSave={handleSaveSettings}
+            onBack={() => setActiveTab("dashboard")}
+          />
         )}
       </main>
 

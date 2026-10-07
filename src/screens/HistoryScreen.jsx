@@ -160,6 +160,7 @@ const HistoryScreen = ({ settings, sessions, onSetupApplied }) => {
                         ) : setup && bike && track ? (
                           <RecommendationPanel
                             apiKey={settings?.apiKey}
+                            driverProfile={settings?.driverProfile}
                             bike={bike}
                             track={track}
                             setup={setup}

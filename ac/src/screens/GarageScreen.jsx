@@ -17,6 +17,7 @@ import {
   defaultCornerValues,
   rangesByScope,
 } from "../data/acParams";
+import { applyDriverProfileNudges } from "../data/driverProfile";
 import { C } from "../styles/theme";
 
 const CAR_KEYS = CAR_PARAM_SECTIONS.flatMap((s) => s.params);
@@ -43,6 +44,7 @@ const GarageScreen = ({ settings }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [baselineReasons, setBaselineReasons] = useState(null);
 
   useEffect(() => {
     TracksApi.list().then(setTracks).catch((e) => setCarError(e.message));
@@ -91,9 +93,19 @@ const GarageScreen = ({ settings }) => {
         change_summary: "",
         notes: "",
       });
+      setBaselineReasons(null);
     } else if (car) {
-      setDraftCorners(defaultCornerValues(byScope));
-      setDraftCar(defaultCarValues(byScope));
+      const baseCorners = defaultCornerValues(byScope);
+      const baseCar = defaultCarValues(byScope);
+      const { carValues, corners, reasons } = applyDriverProfileNudges({
+        carValues: baseCar,
+        corners: baseCorners,
+        byScope,
+        driverProfile: settings?.driverProfile,
+      });
+      setDraftCorners(corners);
+      setDraftCar(carValues);
+      setBaselineReasons(Object.keys(reasons).length ? reasons : null);
       setCompoundId(car.compounds?.[0]?.id ?? null);
       setFuelL(car.fuel_tank_l ? String(Math.round(car.fuel_tank_l / 2)) : "");
       setGearRatios([]);
@@ -204,7 +216,18 @@ const GarageScreen = ({ settings }) => {
             {chainLoading ? (
               <Status color={C.ink3}>Loading saved setups...</Status>
             ) : chain.length === 0 ? (
-              <Status color={C.ink3}>No saved setup yet — editing the stock baseline below.</Status>
+              <>
+                <Status color={C.ink3}>No saved setup yet — editing the stock baseline below.</Status>
+                {baselineReasons && Object.keys(baselineReasons).length > 0 && (
+                  <div className="hud-stack" style={{ gap: "4px", marginTop: "8px" }}>
+                    {Object.entries(baselineReasons).map(([key, reason]) => (
+                      <p className="hud-text" key={key} style={{ color: C.ink2 }}>
+                        <b>{CAR_PARAM_LABELS[key] || CORNER_PARAM_LABELS[key] || key}:</b> {reason}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="hud-chips">
                 {chain.map((v) => (

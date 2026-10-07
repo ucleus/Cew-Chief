@@ -168,6 +168,22 @@ export function runModel({ bike, setup, session }) {
   };
 }
 
+// Standing driver-profile nudges for the baseline generator. Only fires at
+// severity >= 3 (a real self-reported weakness, not a passing shrug), and
+// moves at most 1-2 steps — a starting point to test, not a fix.
+const PROFILE_NUDGES = {
+  late_braking: { param_key: "engine_brake", direction: 1, reason: "Reported as a weak area — a touch more engine brake helps settle the bike for a late stop." },
+  trail_braking: { param_key: "front_rebound", direction: -1, reason: "Reported as a weak area — softer front rebound keeps front grip available through the release." },
+  commitment_entry: { param_key: "front_compression", direction: -1, reason: "Reported as a weak area — softer front compression gives more feel/confidence on entry." },
+  mid_corner_confidence: { param_key: "front_downforce", direction: 1, reason: "Reported as a weak area — a bit more front downforce for a more planted, confidence-inspiring mid-corner." },
+  throttle_exit: { param_key: "tc1", direction: 1, reason: "Reported as a weak area — a bit more TC as a safety net while managing exit throttle." },
+  consistency: { param_key: "wheelie_control", direction: 1, reason: "Reported as a weak area — more wheelie control for a more repeatable exit." },
+  high_speed_stability: { param_key: "rear_downforce", direction: 1, reason: "Reported as a weak area — more rear downforce for extra stability at speed." },
+  low_grip: { param_key: "tc1", direction: 1, reason: "Reported as a weak area — a bit more TC as a safety net in low grip." },
+  bumpy_kerbs: { param_key: "rear_compression", direction: -1, reason: "Reported as a weak area — softer rear compression for more compliance over bumps/kerbs." },
+  direction_changes: { param_key: "rear_rebound", direction: -1, reason: "Reported as a weak area — faster rear rebound for quicker direction changes." },
+};
+
 /**
  * A track-aware, non-AI starting point for a brand new bike+track setup.
  * Mirrors the earlier build's stated philosophy: only move defaults where
@@ -175,8 +191,13 @@ export function runModel({ bike, setup, session }) {
  * control for bumpiness and corner speed, engine brake for heavy braking).
  * Suspension and geometry stay on the game's defaults — track-to-track
  * guidance there is too inconsistent to encode as a rule.
+ *
+ * driverProfile (optional) layers a few more nudges from the rider's
+ * standing self-reported weak areas (Settings → Driver Profile) — these are
+ * self-report, not measured data, so they're clearly weaker signal than the
+ * track-character nudges above and move at most 1-2 steps.
  */
-export function suggestBaseline({ bike, track }) {
+export function suggestBaseline({ bike, track, driverProfile }) {
   const paramByKey = Object.fromEntries(bike.params.map((p) => [p.param_key, p]));
   const values = {};
   const reasons = {};
@@ -197,6 +218,23 @@ export function suggestBaseline({ bike, track }) {
   if (paramByKey.engine_brake && straight >= 4) {
     values.engine_brake = snapToStep(values.engine_brake - Number(paramByKey.engine_brake.step_value), Number(paramByKey.engine_brake.min_value), Number(paramByKey.engine_brake.max_value), Number(paramByKey.engine_brake.step_value));
     reasons.engine_brake = "Long straights mean hard braking from very high speed — less engine brake to keep the rear settled on initial entry.";
+  }
+
+  for (const [areaKey, severity] of Object.entries(driverProfile?.weakAreas || {})) {
+    if (severity < 3) continue;
+    const nudge = PROFILE_NUDGES[areaKey];
+    const meta = nudge && paramByKey[nudge.param_key];
+    if (!meta || reasons[nudge.param_key]) continue; // don't double-nudge a param two rules already touched
+    const steps = severity >= 5 ? 2 : 1;
+    const next = snapToStep(
+      values[nudge.param_key] + nudge.direction * steps * Number(meta.step_value),
+      Number(meta.min_value),
+      Number(meta.max_value),
+      Number(meta.step_value),
+    );
+    if (next === values[nudge.param_key]) continue;
+    values[nudge.param_key] = next;
+    reasons[nudge.param_key] = nudge.reason;
   }
 
   const choices = {};

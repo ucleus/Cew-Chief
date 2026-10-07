@@ -3,6 +3,7 @@ import Icon from "../ui/Icon";
 import { Status } from "../ui/Hud";
 import { RecItemsApi, RecommendationsApi, SetupsApi } from "../../api/client";
 import { CHOICE_LABELS, CHOICE_PARAMS, PARAM_LABELS } from "../../data/setupParams";
+import { composeDriverProfileText } from "../../data/driverProfile";
 import { buildHistory } from "../../utils/motoHistory";
 import { runModel } from "../../utils/motoMath";
 import { C } from "../../styles/theme";
@@ -23,7 +24,7 @@ function suggestedTextFor(item) {
   return item.kind === "CHOICE" ? item.suggested_option : String(item.suggested_number);
 }
 
-function buildPrompt({ bike, track, setup, session, modelResult, history }) {
+function buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile }) {
   const paramLines = bike.params
     .map((p) => `- ${p.param_key}: current ${setup.values[p.param_key]} (range ${p.min_value}-${p.max_value}, step ${p.step_value})`)
     .join("\n");
@@ -85,6 +86,7 @@ ${lapLines ? `Lap-by-lap:\n${lapLines}\n` : ""}
 ${feedbackLines ? `Corner feedback:\n${feedbackLines}\n` : ""}
 ${modelLines ? `Model suggests:\n${modelLines}\n` : "Model suggests: nothing triggered.\n"}
 ${historyLines ? `History on this bike+track:\n${historyLines}\n` : "History on this bike+track: none yet.\n"}
+Driver profile (standing self-report, not from this session — weight it below the hard data above): ${composeDriverProfileText(driverProfile) || "none given"}
 Driver notes: ${session.driver_notes || "none"}
 
 Diagnose the problems and give a championship-level setup correction.`;
@@ -92,7 +94,7 @@ Diagnose the problems and give a championship-level setup correction.`;
   return { system, user };
 }
 
-const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied }) => {
+const RecommendationPanel = ({ apiKey, driverProfile, bike, track, setup, session, onApplied }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -145,7 +147,7 @@ const RecommendationPanel = ({ apiKey, bike, track, setup, session, onApplied })
       const modelResult = runModel({ bike, setup, session });
       const chain = await SetupsApi.chain(bike.id, track.id);
       const history = await buildHistory(chain);
-      const { system, user } = buildPrompt({ bike, track, setup, session, modelResult, history });
+      const { system, user } = buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile });
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

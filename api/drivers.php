@@ -24,6 +24,14 @@ switch (method()) {
         $stmt->execute([$name, $in['style_notes'] ?? null]);
         respond(['id' => (int) db()->lastInsertId(), 'name' => $name, 'style_notes' => $in['style_notes'] ?? null], 201);
 
+    case 'PATCH':
+        if (empty($_GET['id'])) fail('id is required');
+        $in = json_input();
+        if (!array_key_exists('style_notes', $in)) fail('Nothing to update');
+        $stmt = db()->prepare('UPDATE drivers SET style_notes = ? WHERE id = ?');
+        $stmt->execute([$in['style_notes'], $_GET['id']]);
+        respond(['ok' => true]);
+
     default:
         fail('Method not allowed', 405);
 }

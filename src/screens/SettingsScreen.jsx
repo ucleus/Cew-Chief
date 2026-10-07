@@ -4,6 +4,7 @@ import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
 import { BikesApi } from "../api/client";
 import { CLASS_TEAMS, RACING_CLASSES } from "../data/championship";
+import { EMPTY_DRIVER_PROFILE, WEAK_AREAS } from "../data/driverProfile";
 import { C } from "../styles/theme";
 
 const SettingsScreen = ({ settings, onSave, onBack }) => {
@@ -19,6 +20,7 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
       sponsor: "",
       manager: "",
       engineeringStaff: "",
+      driverProfile: EMPTY_DRIVER_PROFILE,
     },
   );
   const [showKey, setShowKey] = useState(false);
@@ -38,6 +40,24 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
   }, [form.class_]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const profile = form.driverProfile || EMPTY_DRIVER_PROFILE;
+  const toggleWeakArea = (key) =>
+    setForm((f) => {
+      const weakAreas = { ...(f.driverProfile?.weakAreas || {}) };
+      if (weakAreas[key]) delete weakAreas[key];
+      else weakAreas[key] = 3;
+      return { ...f, driverProfile: { ...(f.driverProfile || EMPTY_DRIVER_PROFILE), weakAreas } };
+    });
+  const setWeakAreaSeverity = (key, severity) =>
+    setForm((f) => ({
+      ...f,
+      driverProfile: {
+        ...(f.driverProfile || EMPTY_DRIVER_PROFILE),
+        weakAreas: { ...(f.driverProfile?.weakAreas || {}), [key]: severity },
+      },
+    }));
+  const setProfileNotes = (notes) =>
+    setForm((f) => ({ ...f, driverProfile: { ...(f.driverProfile || EMPTY_DRIVER_PROFILE), notes } }));
   const changeClass = (className) =>
     setForm((current) => ({
       ...current,
@@ -227,6 +247,58 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
                 placeholder="Head engineer"
               />
             </div>
+          </div>
+        </Panel>
+
+        {/* Driver Profile — standing weaknesses, not tied to any one session */}
+        <Panel title="Driver Profile" tone="or" className="span-full">
+          <div className="hud-body">
+            <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+              General tendencies, not what happened on one session — this feeds every AI debrief
+              and the starting-point baseline. Session-specific issues still go on the Log Session
+              form.
+            </p>
+            <div className="hud-stack" style={{ gap: "8px" }}>
+              {WEAK_AREAS.map((area) => {
+                const severity = profile.weakAreas?.[area.key];
+                const active = severity != null;
+                return (
+                  <div key={area.key}>
+                    <button
+                      type="button"
+                      className="hud-chip"
+                      aria-pressed={active}
+                      onClick={() => toggleWeakArea(area.key)}
+                    >
+                      {area.label}
+                    </button>
+                    {active && (
+                      <div style={{ display: "flex", gap: "6px", marginTop: "4px", alignItems: "center" }}>
+                        <span className="hud-status">Severity</span>
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={severity}
+                          onChange={(e) => setWeakAreaSeverity(area.key, Number(e.target.value))}
+                        />
+                        <span className="hud-status">{severity}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <label className="hud-label" htmlFor="set-profile-notes" style={{ marginTop: "12px", display: "block" }}>
+              Anything else
+            </label>
+            <textarea
+              id="set-profile-notes"
+              className="hud-input"
+              value={profile.notes || ""}
+              onChange={(e) => setProfileNotes(e.target.value)}
+              placeholder="e.g. prefers a loose rear, struggles in off-camber corners"
+            />
           </div>
         </Panel>
 

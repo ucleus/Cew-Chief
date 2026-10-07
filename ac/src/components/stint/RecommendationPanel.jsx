@@ -3,6 +3,7 @@ import Icon from "../ui/Icon";
 import { Status } from "../ui/Hud";
 import { ComputeApi, RecItemsApi, RecommendationsApi, SetupsApi } from "../../api/client";
 import { buildHistory } from "../../utils/history";
+import { composeDriverProfileText } from "../../data/driverProfile";
 import { CAR_PARAM_LABELS, CORNER_PARAM_LABELS } from "../../data/acParams";
 import { C } from "../../styles/theme";
 
@@ -26,6 +27,7 @@ Each request is one JSON object:
 - computed: numbers produced by a deterministic calculator from the setup and the stint readings. Includes ride frequencies, roll stiffness and its front share, rake, each tyre's pressure and temperature reading, tyre balance, lap statistics, and pressure_corrections.
 - feedback: the driver's complaints, each with a corner phase, a speed range, a symptom, and a severity from 1 (minor) to 5 (undriveable).
 - history: earlier changes on this car and track, and what each did to lap time.
+- driver_profile: the driver's standing self-reported weak areas, not from this stint. Weight it below everything else here — it's self-report, not measured data — but let it tie-break between two otherwise-even options.
 
 RULES
 
@@ -95,9 +97,10 @@ function buildCarValues(setup) {
   return values;
 }
 
-function buildUserPayload({ car, track, setup, stint, computed, feedback, history }) {
+function buildUserPayload({ car, track, setup, stint, computed, feedback, history, driverProfile }) {
   return {
     prompt_version: PROMPT_VERSION,
+    driver_profile: composeDriverProfileText(driverProfile) || "none given",
     track: {
       name: track.name,
       layout: track.layout,
@@ -148,7 +151,7 @@ function buildUserPayload({ car, track, setup, stint, computed, feedback, histor
   };
 }
 
-const RecommendationPanel = ({ apiKey, car, track, setup, stint, onApplied }) => {
+const RecommendationPanel = ({ apiKey, driverProfile, car, track, setup, stint, onApplied }) => {
   const [recommendation, setRecommendation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -174,7 +177,7 @@ const RecommendationPanel = ({ apiKey, car, track, setup, stint, onApplied }) =>
       const computed = await ComputeApi.run({ car, setup, compound, stint });
       const chain = await SetupsApi.chain(car.id, track.id);
       const history = await buildHistory(chain);
-      const userPayload = buildUserPayload({ car, track, setup, stint, computed, feedback: stint.feedback, history });
+      const userPayload = buildUserPayload({ car, track, setup, stint, computed, feedback: stint.feedback, history, driverProfile });
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

@@ -22,6 +22,7 @@ const api = {
 export const DriversApi = {
   list: () => api.get("drivers.php"),
   findOrCreate: (name, styleNotes) => api.post("drivers.php", { name, style_notes: styleNotes }),
+  updateStyleNotes: (id, styleNotes) => api.patch(`drivers.php?id=${id}`, { style_notes: styleNotes }),
 };
 
 export const CarsApi = {

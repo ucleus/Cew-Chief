@@ -3,8 +3,9 @@ import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
 import NumberStepper from "../components/ui/NumberStepper";
-import { CarsApi } from "../api/client";
+import { CarsApi, DriversApi } from "../api/client";
 import { DRIVETRAIN_OPTIONS } from "../data/acParams";
+import { EMPTY_DRIVER_PROFILE, WEAK_AREAS, composeDriverProfileText } from "../data/driverProfile";
 import { C } from "../styles/theme";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
@@ -21,10 +22,11 @@ const EMPTY_IMPORT_CAR = {
   fuel_tank_l: "",
 };
 
-const SettingsScreen = ({ settings, onSave, onBack }) => {
+const SettingsScreen = ({ settings, driver, onSave, onBack }) => {
   const [form, setForm] = useState(
-    settings || { apiKey: "", carId: null, carName: "" },
+    settings || { apiKey: "", carId: null, carName: "", driverProfile: EMPTY_DRIVER_PROFILE },
   );
+  const [profileSaveError, setProfileSaveError] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
   const [cars, setCars] = useState([]);
@@ -89,9 +91,36 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
     setForm((f) => ({ ...f, carId, carName: car?.name || "" }));
   };
 
-  const handleSave = () => {
+  const profile = form.driverProfile || EMPTY_DRIVER_PROFILE;
+  const toggleWeakArea = (key) =>
+    setForm((f) => {
+      const weakAreas = { ...(f.driverProfile?.weakAreas || {}) };
+      if (weakAreas[key]) delete weakAreas[key];
+      else weakAreas[key] = 3;
+      return { ...f, driverProfile: { ...(f.driverProfile || EMPTY_DRIVER_PROFILE), weakAreas } };
+    });
+  const setWeakAreaSeverity = (key, severity) =>
+    setForm((f) => ({
+      ...f,
+      driverProfile: {
+        ...(f.driverProfile || EMPTY_DRIVER_PROFILE),
+        weakAreas: { ...(f.driverProfile?.weakAreas || {}), [key]: severity },
+      },
+    }));
+  const setProfileNotes = (notes) =>
+    setForm((f) => ({ ...f, driverProfile: { ...(f.driverProfile || EMPTY_DRIVER_PROFILE), notes } }));
+
+  const handleSave = async () => {
     localStorage.setItem("ac_settings", JSON.stringify(form));
     onSave(form);
+    setProfileSaveError("");
+    if (driver?.driverId) {
+      try {
+        await DriversApi.updateStyleNotes(driver.driverId, composeDriverProfileText(form.driverProfile));
+      } catch (e) {
+        setProfileSaveError(`Settings saved, but couldn't sync the driver profile to the database: ${e.message}`);
+      }
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -238,6 +267,59 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
               </div>
             </div>
           )}
+        </Panel>
+
+        {/* Driver Profile — standing weaknesses, not tied to any one stint */}
+        <Panel title="Driver Profile" tone="or" className="span-full">
+          <div className="hud-body">
+            <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+              General tendencies, not what happened on one stint — this feeds every AI debrief.
+              Stint-specific issues still go on the Log Stint form. Saved to this driver's record
+              ({driver?.name || "log in to sync"}) as well as locally.
+            </p>
+            <div className="hud-stack" style={{ gap: "8px" }}>
+              {WEAK_AREAS.map((area) => {
+                const severity = profile.weakAreas?.[area.key];
+                const active = severity != null;
+                return (
+                  <div key={area.key}>
+                    <button
+                      type="button"
+                      className="hud-chip"
+                      aria-pressed={active}
+                      onClick={() => toggleWeakArea(area.key)}
+                    >
+                      {area.label}
+                    </button>
+                    {active && (
+                      <div style={{ display: "flex", gap: "6px", marginTop: "4px", alignItems: "center" }}>
+                        <span className="hud-status">Severity</span>
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={severity}
+                          onChange={(e) => setWeakAreaSeverity(area.key, Number(e.target.value))}
+                        />
+                        <span className="hud-status">{severity}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <label className="hud-label" htmlFor="set-profile-notes" style={{ marginTop: "12px", display: "block" }}>
+              Anything else
+            </label>
+            <textarea
+              id="set-profile-notes"
+              className="hud-input"
+              value={profile.notes || ""}
+              onChange={(e) => setProfileNotes(e.target.value)}
+              placeholder="e.g. prefers a loose rear, struggles in off-camber corners"
+            />
+            {profileSaveError && <Status color={C.orange}>{profileSaveError}</Status>}
+          </div>
         </Panel>
 
         <div className="span-full">
