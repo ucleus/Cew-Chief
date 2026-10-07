@@ -71,7 +71,7 @@ const SessionModal = ({ settings, onClose, onSave }) => {
   }, [bike, trackId]);
 
   const addLap = () =>
-    setLaps((l) => [...l, { lap_no: l.length + 1, lap_s: "", is_valid: true }]);
+    setLaps((l) => [...l, { lap_no: l.length + 1, lap_s: "", sector1_s: "", sector2_s: "", sector3_s: "", is_valid: true }]);
   const updateLap = (i, patch) =>
     setLaps((l) => l.map((lap, idx) => (idx === i ? { ...lap, ...patch } : lap)));
   const removeLap = (i) =>
@@ -160,6 +160,9 @@ const SessionModal = ({ settings, onClose, onSave }) => {
         laps: validLaps.map((l, i) => ({
           lap_no: l.lap_no ?? i + 1,
           lap_ms: secondsToMs(l.lap_s),
+          sector1_ms: secondsToMs(l.sector1_s),
+          sector2_ms: secondsToMs(l.sector2_s),
+          sector3_ms: secondsToMs(l.sector3_s),
           is_valid: l.is_valid,
         })),
         feedback: feedback
@@ -282,29 +285,37 @@ const SessionModal = ({ settings, onClose, onSave }) => {
           </div>
 
           <div className="hud-field wide">
-            <span className="hud-label">Lap-by-Lap (optional, overrides best/avg above)</span>
+            <span className="hud-label">Lap-by-Lap, with Sector Splits (optional, overrides best/avg above)</span>
             <div className="hud-stack" style={{ gap: "6px" }}>
               {laps.map((lap, i) => (
-                <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <span className="hud-status" style={{ minWidth: "28px" }}>#{lap.lap_no}</span>
-                  <NumberStepper
-                    step={0.001}
-                    min={0}
-                    value={lap.lap_s}
-                    onChange={(v) => updateLap(i, { lap_s: v })}
-                    placeholder="seconds"
-                  />
-                  <label style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "11px", color: C.ink2 }}>
-                    <input
-                      type="checkbox"
-                      checked={lap.is_valid}
-                      onChange={(e) => updateLap(i, { is_valid: e.target.checked })}
+                <div key={i} className="hud-fix" style={{ padding: "8px" }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <span className="hud-status" style={{ minWidth: "28px" }}>#{lap.lap_no}</span>
+                    <NumberStepper
+                      step={0.001}
+                      min={0}
+                      value={lap.lap_s}
+                      onChange={(v) => updateLap(i, { lap_s: v })}
+                      placeholder="lap total, seconds"
                     />
-                    valid
-                  </label>
-                  <button type="button" className="hud-link" onClick={() => removeLap(i)} aria-label="Remove lap">
-                    ✕
-                  </button>
+                    <label style={{ display: "flex", gap: "4px", alignItems: "center", fontSize: "11px", color: C.ink2 }}>
+                      <input
+                        type="checkbox"
+                        checked={lap.is_valid}
+                        onChange={(e) => updateLap(i, { is_valid: e.target.checked })}
+                      />
+                      valid
+                    </label>
+                    <button type="button" className="hud-link" onClick={() => removeLap(i)} aria-label="Remove lap">
+                      ✕
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <span className="hud-status" style={{ minWidth: "28px" }} />
+                    <NumberStepper step={0.001} min={0} value={lap.sector1_s} onChange={(v) => updateLap(i, { sector1_s: v })} placeholder="S1" />
+                    <NumberStepper step={0.001} min={0} value={lap.sector2_s} onChange={(v) => updateLap(i, { sector2_s: v })} placeholder="S2" />
+                    <NumberStepper step={0.001} min={0} value={lap.sector3_s} onChange={(v) => updateLap(i, { sector3_s: v })} placeholder="S3" />
+                  </div>
                 </div>
               ))}
               <button type="button" className="hud-btn hud-btn--ghost" onClick={addLap}>

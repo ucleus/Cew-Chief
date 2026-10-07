@@ -3,7 +3,7 @@ require __DIR__ . '/_bootstrap.php';
 
 function load_session(array $session): array
 {
-    $laps = db()->prepare('SELECT lap_no, lap_ms, is_valid FROM mg_session_laps WHERE session_id = ? ORDER BY lap_no');
+    $laps = db()->prepare('SELECT lap_no, lap_ms, sector1_ms, sector2_ms, sector3_ms, is_valid FROM mg_session_laps WHERE session_id = ? ORDER BY lap_no');
     $laps->execute([$session['id']]);
     $session['laps'] = $laps->fetchAll();
 
@@ -79,12 +79,18 @@ switch (method()) {
             ]);
             $sessionId = (int) $pdo->lastInsertId();
 
-            $lapStmt = $pdo->prepare('INSERT INTO mg_session_laps (session_id, lap_no, lap_ms, is_valid) VALUES (?, ?, ?, ?)');
+            $lapStmt = $pdo->prepare(
+                'INSERT INTO mg_session_laps (session_id, lap_no, lap_ms, sector1_ms, sector2_ms, sector3_ms, is_valid)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+            );
             foreach (($in['laps'] ?? []) as $i => $lap) {
                 $lapStmt->execute([
                     $sessionId,
                     $lap['lap_no'] ?? ($i + 1),
                     $lap['lap_ms'],
+                    $lap['sector1_ms'] ?? null,
+                    $lap['sector2_ms'] ?? null,
+                    $lap['sector3_ms'] ?? null,
                     isset($lap['is_valid']) ? (int) $lap['is_valid'] : 1,
                 ]);
             }

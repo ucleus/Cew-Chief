@@ -5,7 +5,7 @@ const AC_CORNERS = ['FL', 'FR', 'RL', 'RR'];
 
 function load_stint(array $stint): array
 {
-    $laps = db()->prepare('SELECT lap_no, lap_ms, is_valid FROM stint_laps WHERE stint_id = ? ORDER BY lap_no');
+    $laps = db()->prepare('SELECT lap_no, lap_ms, sector1_ms, sector2_ms, sector3_ms, is_valid FROM stint_laps WHERE stint_id = ? ORDER BY lap_no');
     $laps->execute([$stint['id']]);
     $stint['laps'] = $laps->fetchAll();
 
@@ -70,9 +70,20 @@ switch (method()) {
             ]);
             $stintId = (int) $pdo->lastInsertId();
 
-            $lapStmt = $pdo->prepare('INSERT INTO stint_laps (stint_id, lap_no, lap_ms, is_valid) VALUES (?, ?, ?, ?)');
+            $lapStmt = $pdo->prepare(
+                'INSERT INTO stint_laps (stint_id, lap_no, lap_ms, sector1_ms, sector2_ms, sector3_ms, is_valid)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+            );
             foreach (($in['laps'] ?? []) as $i => $lap) {
-                $lapStmt->execute([$stintId, $lap['lap_no'] ?? ($i + 1), $lap['lap_ms'], isset($lap['is_valid']) ? (int) $lap['is_valid'] : 1]);
+                $lapStmt->execute([
+                    $stintId,
+                    $lap['lap_no'] ?? ($i + 1),
+                    $lap['lap_ms'],
+                    $lap['sector1_ms'] ?? null,
+                    $lap['sector2_ms'] ?? null,
+                    $lap['sector3_ms'] ?? null,
+                    isset($lap['is_valid']) ? (int) $lap['is_valid'] : 1,
+                ]);
             }
 
             $tireStmt = $pdo->prepare(
