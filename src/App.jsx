@@ -77,6 +77,10 @@ export default function App() {
             {settings?.riderNumber && <b>#{settings.riderNumber}</b>}
             {settings?.class_ && <span>{settings.class_}</span>}
           </div>
+          <a href="/ac/" className="hud-topbar__btn" title="Switch to the Assetto Corsa app">
+            <Icon name="flag" size={18} color={C.cyan} />
+            AC App
+          </a>
           <button
             type="button"
             className="hud-topbar__btn"

@@ -78,6 +78,10 @@ export default function App() {
             AC CREW CHIEF
           </div>
           <div className="hud-topbar__meta">{driver?.name && <b>{driver.name}</b>}</div>
+          <a href="/" className="hud-topbar__btn" title="Switch to the MotoGP app">
+            <Icon name="motorcycle" size={18} color={C.cyan} />
+            MotoGP App
+          </a>
           <button
             type="button"
             className="hud-topbar__btn"
