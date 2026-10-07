@@ -4,6 +4,7 @@ import { Status } from "../ui/Hud";
 import { RecItemsApi, RecommendationsApi, SetupsApi } from "../../api/client";
 import { CHOICE_LABELS, CHOICE_PARAMS, PARAM_LABELS } from "../../data/setupParams";
 import { composeDriverProfileText } from "../../data/driverProfile";
+import { composeCalibrationText } from "../../data/controllerCalibration";
 import { buildHistory } from "../../utils/motoHistory";
 import { runModel } from "../../utils/motoMath";
 import { C } from "../../styles/theme";
@@ -24,7 +25,7 @@ function suggestedTextFor(item) {
   return item.kind === "CHOICE" ? item.suggested_option : String(item.suggested_number);
 }
 
-function buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile }) {
+function buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile, calibration }) {
   const paramLines = bike.params
     .map((p) => `- ${p.param_key}: current ${setup.values[p.param_key]} (range ${p.min_value}-${p.max_value}, step ${p.step_value})`)
     .join("\n");
@@ -55,6 +56,8 @@ A rule-based model has already run and produced some candidate changes (see "Mod
 
 Use the history: do not repeat a change that was already tried and made the bike slower in comparable conditions (conditions_comparable=false means don't trust the lap delta). Treat lap time differences smaller than noise with suspicion.
 
+The rider's controller calibration (dead zone, linearity, saturation, filter pressure, filter release — see "Controller calibration" below) is a separate axis from the bike setup: it controls how stick input gets processed before it ever reaches the bike. Some symptoms are calibration problems, not bike problems — snap/twitchy reactions suit a low filter pressure or low dead zone with high linearity; inconsistent, hard-to-repeat inputs suit low filter pressure; sluggish correction when the bike steps out suits high filter release. If you believe calibration is part or all of the problem, say so in calibration_note with the specific value(s) to change — do not try to fix a calibration problem with a bike setup change instead, and do not invent a calibration_note when the symptom is clearly mechanical (e.g. tyre wear, chatter).
+
 Always respond in this EXACT JSON format (no markdown, no extra text):
 {
   "headline": "One brutal honest assessment sentence",
@@ -65,6 +68,7 @@ Always respond in this EXACT JSON format (no markdown, no extra text):
     {"priority": 1, "param_key": "<one of the numeric param_keys>", "kind": "NUM", "suggested_number": <int within its range>, "addresses": "<symptom this fixes>", "rationale": "<physics explanation>", "tradeoff": "<what gets worse>"},
     {"priority": 2, "param_key": "tyre_front or tyre_rear", "kind": "CHOICE", "suggested_option": "SOFT|MEDIUM|HARD|WET", "addresses": "...", "rationale": "...", "tradeoff": "..."}
   ],
+  "calibration_note": "Specific calibration value(s) to change and why, only if calibration is genuinely part of the problem — empty string otherwise",
   "coach_notes": "A brutally honest, technically deep paragraph — what the rider MUST do next session"
 }
 Recommend one primary change and at most three secondary changes. Only include items worth changing — do not pad the list. Stay strictly within each param's given range.`;
@@ -87,6 +91,7 @@ ${feedbackLines ? `Corner feedback:\n${feedbackLines}\n` : ""}
 ${modelLines ? `Model suggests:\n${modelLines}\n` : "Model suggests: nothing triggered.\n"}
 ${historyLines ? `History on this bike+track:\n${historyLines}\n` : "History on this bike+track: none yet.\n"}
 Driver profile (standing self-report, not from this session — weight it below the hard data above): ${composeDriverProfileText(driverProfile) || "none given"}
+Controller calibration (current in-game settings): ${composeCalibrationText(calibration)}
 Driver notes: ${session.driver_notes || "none"}
 
 Diagnose the problems and give a championship-level setup correction.`;
@@ -94,7 +99,7 @@ Diagnose the problems and give a championship-level setup correction.`;
   return { system, user };
 }
 
-const RecommendationPanel = ({ apiKey, driverProfile, bike, track, setup, session, onApplied }) => {
+const RecommendationPanel = ({ apiKey, driverProfile, calibration, bike, track, setup, session, onApplied }) => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -147,7 +152,7 @@ const RecommendationPanel = ({ apiKey, driverProfile, bike, track, setup, sessio
       const modelResult = runModel({ bike, setup, session });
       const chain = await SetupsApi.chain(bike.id, track.id);
       const history = await buildHistory(chain);
-      const { system, user } = buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile });
+      const { system, user } = buildPrompt({ bike, track, setup, session, modelResult, history, driverProfile, calibration });
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -283,6 +288,12 @@ const RecommendationPanel = ({ apiKey, driverProfile, bike, track, setup, sessio
 
       {recommendations.map((rec) => {
         const acceptedCount = rec.items.filter((i) => i.accepted === 1).length;
+        let calibrationNote = "";
+        try {
+          calibrationNote = JSON.parse(rec.response_json || "{}").calibration_note || "";
+        } catch {
+          // older/model-source rows may not carry this field
+        }
         return (
           <div key={rec.id} className="hud-stack" style={{ gap: "8px" }}>
             <div className="hud-fix hud-fix--high">
@@ -296,6 +307,15 @@ const RecommendationPanel = ({ apiKey, driverProfile, bike, track, setup, sessio
                 <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {rec.expected_tradeoff}</p>
               )}
             </div>
+
+            {calibrationNote && (
+              <div className="hud-fix" style={{ borderColor: C.cyanLine }}>
+                <div className="hud-fix__head">
+                  <span className="hud-tag">Controller, not bike</span>
+                </div>
+                <p className="hud-text">{calibrationNote}</p>
+              </div>
+            )}
 
             {rec.items.map((item) => (
               <div key={item.id} className="hud-fix">

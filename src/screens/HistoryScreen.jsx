@@ -186,6 +186,7 @@ const HistoryScreen = ({ settings, sessions, onSetupApplied }) => {
                           <RecommendationPanel
                             apiKey={settings?.apiKey}
                             driverProfile={settings?.driverProfile}
+                            calibration={settings?.controllerCalibration}
                             bike={bike}
                             track={track}
                             setup={setup}

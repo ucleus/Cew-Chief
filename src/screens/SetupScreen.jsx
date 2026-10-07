@@ -17,12 +17,13 @@ import {
   defaultValuesFromParams,
 } from "../data/setupParams";
 import { composeDriverProfileText } from "../data/driverProfile";
+import { composeCalibrationText } from "../data/controllerCalibration";
 import { suggestBaseline } from "../utils/motoMath";
 import { C } from "../styles/theme";
 
 const DIAGNOSE_MODEL = "claude-sonnet-4-6";
 
-function buildDiagnosePrompt({ bike, track, draftValues, draftChoices, problems, driverProfile }) {
+function buildDiagnosePrompt({ bike, track, draftValues, draftChoices, problems, driverProfile, calibration }) {
   const paramLines = bike.params
     .map((p) => `- ${p.param_key}: current ${draftValues[p.param_key]} (range ${p.min_value}-${p.max_value}, step ${p.step_value})`)
     .join("\n");
@@ -36,6 +37,8 @@ function buildDiagnosePrompt({ bike, track, draftValues, draftChoices, problems,
 
 This request has no session data — no lap times, no telemetry. You are working from the rider's description of the problem alone, plus their standing profile. Say so plainly if that limits your confidence.
 
+The rider's controller calibration (dead zone, linearity, saturation, filter pressure, filter release) is a separate axis from the bike setup — it controls how stick input gets processed before it reaches the bike. With no session data to lean on, weigh this seriously: snap/twitchy complaints suit a low filter pressure or low dead zone with high linearity; inconsistent inputs suit low filter pressure; sluggish correction when the bike steps out suits high filter release. If calibration is part or all of the problem, say so in calibration_note with specific value(s) to change — do not invent a note when the symptom is clearly mechanical.
+
 Always respond in this EXACT JSON format (no markdown, no extra text):
 {
   "headline": "One brutal honest assessment sentence",
@@ -46,6 +49,7 @@ Always respond in this EXACT JSON format (no markdown, no extra text):
     {"priority": 1, "param_key": "<one of the numeric param_keys>", "kind": "NUM", "suggested_number": <int within its range>, "addresses": "<symptom this fixes>", "rationale": "<physics explanation>", "tradeoff": "<what gets worse>"},
     {"priority": 2, "param_key": "tyre_front or tyre_rear", "kind": "CHOICE", "suggested_option": "SOFT|MEDIUM|HARD|WET", "addresses": "...", "rationale": "...", "tradeoff": "..."}
   ],
+  "calibration_note": "Specific calibration value(s) to change and why, only if genuinely part of the problem — empty string otherwise",
   "coach_notes": "A brutally honest, technically deep paragraph — what the rider MUST do next session"
 }
 Recommend one primary change and at most three secondary changes. Only include items worth changing. Stay strictly within each param's given range. With no session data, confidence should rarely be HIGH.`;
@@ -59,6 +63,7 @@ ${tyreLines}
 
 Reported problem(s): ${problems.length ? problems.join("; ") : "none picked"}
 Driver profile (standing self-report): ${composeDriverProfileText(driverProfile) || "none given"}
+Controller calibration (current in-game settings): ${composeCalibrationText(calibration)}
 
 Diagnose the problem and give a championship-level setup correction, working from the current setup above.`;
 
@@ -182,6 +187,7 @@ const SetupScreen = ({ settings }) => {
         draftChoices,
         problems: allProblems,
         driverProfile: settings?.driverProfile,
+        calibration: settings?.controllerCalibration,
       });
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -440,6 +446,14 @@ const SetupScreen = ({ settings }) => {
                       <p className="hud-text" style={{ color: C.ink2 }}>Tradeoff: {diagnoseResult.expected_tradeoff}</p>
                     )}
                   </div>
+                  {diagnoseResult.calibration_note && (
+                    <div className="hud-fix" style={{ borderColor: C.cyanLine }}>
+                      <div className="hud-fix__head">
+                        <span className="hud-tag">Controller, not bike</span>
+                      </div>
+                      <p className="hud-text">{diagnoseResult.calibration_note}</p>
+                    </div>
+                  )}
                   {diagnoseResult.items.map((item, i) => (
                     <div className="hud-fix" key={i}>
                       <div className="hud-fix__head">

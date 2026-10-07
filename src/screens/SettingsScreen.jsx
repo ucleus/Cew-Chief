@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
+import NumberStepper from "../components/ui/NumberStepper";
 import { BikesApi } from "../api/client";
 import { CLASS_TEAMS, RACING_CLASSES } from "../data/championship";
 import { EMPTY_DRIVER_PROFILE, WEAK_AREAS } from "../data/driverProfile";
+import { CALIBRATION_FIELDS, EMPTY_CALIBRATION } from "../data/controllerCalibration";
 import { C } from "../styles/theme";
 
 const SettingsScreen = ({ settings, onSave, onBack }) => {
@@ -58,6 +60,9 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
     }));
   const setProfileNotes = (notes) =>
     setForm((f) => ({ ...f, driverProfile: { ...(f.driverProfile || EMPTY_DRIVER_PROFILE), notes } }));
+  const calibration = form.controllerCalibration || EMPTY_CALIBRATION;
+  const setCalibration = (key, value) =>
+    setForm((f) => ({ ...f, controllerCalibration: { ...(f.controllerCalibration || EMPTY_CALIBRATION), [key]: value } }));
   const changeClass = (className) =>
     setForm((current) => ({
       ...current,
@@ -299,6 +304,35 @@ const SettingsScreen = ({ settings, onSave, onBack }) => {
               onChange={(e) => setProfileNotes(e.target.value)}
               placeholder="e.g. prefers a loose rear, struggles in off-camber corners"
             />
+          </div>
+        </Panel>
+
+        {/* Controller Calibration — input processing, separate from bike setup */}
+        <Panel title="Controller Calibration" tone="cy" className="span-full">
+          <div className="hud-body">
+            <p className="hud-text" style={{ textTransform: "none", color: C.ink2 }}>
+              MotoGP's in-game calibration menu (dead zone, linearity, saturation, filter pressure,
+              filter release) — this is how stick input gets processed before it reaches the bike,
+              a different axis entirely from suspension/electronics. A "twitchy" or "inconsistent"
+              complaint can be a calibration problem no setup change will fix. Match these to what
+              you actually have set in-game so the Crew Chief can tell the difference.
+            </p>
+            <div className="hud-body hud-form">
+              {CALIBRATION_FIELDS.map((f) => (
+                <div className="hud-field" key={f.key}>
+                  <label className="hud-label" htmlFor={`cal-${f.key}`}>{f.label}</label>
+                  <NumberStepper
+                    id={`cal-${f.key}`}
+                    min={f.min}
+                    max={f.max}
+                    step={1}
+                    value={calibration[f.key] ?? f.recommended}
+                    onChange={(v) => setCalibration(f.key, v)}
+                  />
+                  <span className="hud-status" style={{ color: C.ink3 }}>{f.effect}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </Panel>
 
