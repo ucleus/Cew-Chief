@@ -3,6 +3,8 @@ import CustomSelect from "../components/ui/CustomSelect";
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
 import NumberStepper from "../components/ui/NumberStepper";
+import TrackMap from "../components/ui/TrackMap";
+import { MAP_VIEWBOX, TRACK_MAPS } from "../data/trackMaps";
 import { BikesApi, SetupsApi, TracksApi } from "../api/client";
 import {
   CHOICE_LABELS,
@@ -316,6 +318,17 @@ const SetupScreen = ({ settings }) => {
             <Status color={C.ink3}>No circuit selected</Status>
           )}
         </Panel>
+
+        {track && TRACK_MAPS[track.name] && (
+          <Panel title="Track Map" icon={<Icon name="map" size={14} color={C.cyan} />} className="sm-full md-full lg-2">
+            <TrackMap
+              viewBox={MAP_VIEWBOX}
+              path={TRACK_MAPS[track.name].path}
+              direction={TRACK_MAPS[track.name].direction}
+              trackName={track.name}
+            />
+          </Panel>
+        )}
 
         <Panel
           title="Bike"

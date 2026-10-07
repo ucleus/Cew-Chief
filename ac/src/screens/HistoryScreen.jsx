@@ -11,8 +11,21 @@ import {
 import Icon from "../components/ui/Icon";
 import { Panel, Status } from "../components/ui/Hud";
 import RecommendationPanel from "../components/stint/RecommendationPanel";
+import TrackMap from "../components/ui/TrackMap";
+import { MAP_VIEWBOX, TRACK_MAPS } from "../data/trackMaps";
 import { CarsApi, SetupsApi, TracksApi } from "../api/client";
 import { C, chart } from "../styles/theme";
+
+function bestSectors(laps) {
+  const best = {};
+  for (const lap of laps || []) {
+    if (!lap.is_valid) continue;
+    for (const key of ["sector1_ms", "sector2_ms", "sector3_ms"]) {
+      if (lap[key] != null && (best[key] == null || lap[key] < best[key])) best[key] = lap[key];
+    }
+  }
+  return Object.keys(best).length ? best : null;
+}
 
 const HistoryScreen = ({ settings, stints, onSetupApplied }) => {
   const [tracks, setTracks] = useState([]);
@@ -120,6 +133,18 @@ const HistoryScreen = ({ settings, stints, onSetupApplied }) => {
                       ))}
                     </div>
                     {s.driver_notes && <p className="hud-entry__notes">{s.driver_notes}</p>}
+
+                    {track && TRACK_MAPS[track.name] && bestSectors(s.laps) && (
+                      <div style={{ maxWidth: "320px", margin: "8px 0" }}>
+                        <TrackMap
+                          viewBox={MAP_VIEWBOX}
+                          path={TRACK_MAPS[track.name].path}
+                          direction={TRACK_MAPS[track.name].direction}
+                          trackName={track.name}
+                          sectorTimes={bestSectors(s.laps)}
+                        />
+                      </div>
+                    )}
 
                     <button type="button" className="hud-link" onClick={() => toggleExpand(s)}>
                       {expanded ? "Hide debrief" : "Crew chief debrief"}
