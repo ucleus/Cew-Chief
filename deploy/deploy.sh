@@ -106,7 +106,13 @@ if [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 step "Deploying the MotoGP app to $SSH_HOST:$REMOTE_PATH"
-rsync "${RSYNC_ARGS[@]}" -e "$RSYNC_SSH" "$PROJECT_DIR/dist/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/"
+# REMOTE_PATH also holds the ac/ and api/ subfolders deployed below, as
+# siblings of this app's own files. --delete here only cleans up this
+# sync's OWN stale files (old JS/CSS chunk hashes) — explicitly exclude
+# /ac and /api (anchored to the transfer root) so --delete never treats
+# them as extraneous and wipes them, which is exactly what happened before
+# this fix: it deleted the whole api/ folder, including config.php.
+rsync "${RSYNC_ARGS[@]}" --exclude '/ac' --exclude '/api' -e "$RSYNC_SSH" "$PROJECT_DIR/dist/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/"
 
 step "Deploying the AC app to $SSH_HOST:$REMOTE_PATH/ac"
 rsync "${RSYNC_ARGS[@]}" -e "$RSYNC_SSH" "$PROJECT_DIR/ac/dist/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/ac/"
