@@ -4,3 +4,4 @@ dist/
 *.local
 npm-debug.log*
 api/config.php
+.gstack/

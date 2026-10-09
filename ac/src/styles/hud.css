@@ -1591,3 +1591,36 @@ textarea.hud-input {
   position: relative;
   z-index: 40;
 }
+
+/* ---------- Game picker (login) ------------------------------------------ */
+
+.cc-gamepick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 10px 0 20px;
+  border: 1px solid var(--cy-line);
+}
+
+.cc-gamepick__opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px;
+  font-family: var(--font-d);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+a.cc-gamepick__opt:hover {
+  color: var(--ink);
+  background: var(--slab);
+}
+
+.cc-gamepick__opt.is-on {
+  background: var(--or);
+  color: #fff;
+}

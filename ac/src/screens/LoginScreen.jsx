@@ -53,8 +53,15 @@ const LoginScreen = ({ onLogin }) => {
             </g>
           </Hex>
         </div>
-        <h1 className="hud-login__title">AC CREW CHIEF</h1>
-        <div className="hud-login__sub">Assetto Corsa Race Engineer</div>
+        <h1 className="hud-login__title">CREW CHIEF</h1>
+        <div className="cc-gamepick" role="group" aria-label="Choose your game">
+          <a className="cc-gamepick__opt" href="/">
+            MotoGP 26
+          </a>
+          <span className="cc-gamepick__opt is-on" aria-current="true">
+            Assetto Corsa
+          </span>
+        </div>
 
         <Panel title={isNew ? "New Driver" : "Garage Access"} className={glitch ? "login-glitch" : ""}>
           <div className="hud-body hud-stack" style={{ gap: "14px" }}>

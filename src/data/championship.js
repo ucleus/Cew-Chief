@@ -58,3 +58,20 @@ export const CLASS_TEAMS = {
     "SIC58 Squadra Corse",
   ],
 };
+
+// You pick a team; the garage belongs to the bike underneath it. Two teams
+// on the same bike (Gresini and Ducati Lenovo) share physics but keep
+// separate tunes.
+export const TEAM_BIKE = {
+  "Aprilia Racing": "Aprilia RS-GP",
+  "SuperFile Trackhouse MotoGP Team": "Aprilia RS-GP",
+  "BK8 Gresini Racing MotoGP": "Ducati Desmosedici GP",
+  "Ducati Lenovo Team": "Ducati Desmosedici GP",
+  "Pertamina Enduro VR46 Racing Team": "Ducati Desmosedici GP",
+  "Honda HRC Castrol": "Honda RC213V",
+  "Honda LCR": "Honda RC213V",
+  "Monster Energy Yamaha MotoGP": "Yamaha YZR-M1",
+  "Prima Pramac Yamaha MotoGP": "Yamaha YZR-M1",
+  "Red Bull KTM Factory Racing": "KTM RC16",
+  "Red Bull KTM Tech3": "KTM RC16",
+};

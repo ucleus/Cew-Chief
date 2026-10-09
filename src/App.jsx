@@ -1,21 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Icon from "./components/ui/Icon";
-import SessionModal from "./components/session/SessionModal";
-import Dashboard from "./screens/Dashboard";
-import HistoryScreen from "./screens/HistoryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SettingsScreen from "./screens/SettingsScreen";
-import SetupScreen from "./screens/SetupScreen";
-import { SessionsApi } from "./api/client";
+import TuneScreen from "./screens/TuneScreen";
 import { C } from "./styles/theme";
 
 export default function App() {
   const [screen, setScreen] = useState("login");
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("tune");
   const [rider, setRider] = useState(null);
   const [settings, setSettings] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [showSessionModal, setShowSessionModal] = useState(false);
 
   useEffect(() => {
     try {
@@ -23,20 +17,6 @@ export default function App() {
       if (s) setSettings(JSON.parse(s));
     } catch {}
   }, []);
-
-  const refreshSessions = useCallback(() => {
-    if (!settings?.bikeId) {
-      setSessions([]);
-      return;
-    }
-    SessionsApi.listByBike(settings.bikeId)
-      .then(setSessions)
-      .catch(() => setSessions([]));
-  }, [settings?.bikeId]);
-
-  useEffect(() => {
-    refreshSessions();
-  }, [refreshSessions]);
 
   const handleLogin = (riderData) => {
     setRider(riderData);
@@ -47,18 +27,11 @@ export default function App() {
     const merged = { ...s, riderName: rider?.name };
     setSettings(merged);
     localStorage.setItem("mgp_settings", JSON.stringify(merged));
-    setActiveTab("dashboard");
-  };
-
-  const handleSaveSession = async (payload) => {
-    await SessionsApi.create(payload);
-    refreshSessions();
+    setActiveTab("tune");
   };
 
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-    { id: "setup", label: "Setup", icon: "wrench" },
-    { id: "history", label: "History", icon: "chart" },
+    { id: "tune", label: "Tune", icon: "wrench" },
     { id: "settings", label: "Settings", icon: "settings" },
   ];
 
@@ -75,7 +48,7 @@ export default function App() {
           </div>
           <div className="hud-topbar__meta">
             {settings?.riderNumber && <b>#{settings.riderNumber}</b>}
-            {settings?.class_ && <span>{settings.class_}</span>}
+            <span>MotoGP 26</span>
           </div>
           <a href="/ac/" className="hud-topbar__btn" title="Switch to the Assetto Corsa app">
             <Icon name="flag" size={18} color={C.cyan} />
@@ -112,35 +85,12 @@ export default function App() {
         })}
       </nav>
 
-      {/* Content */}
       <main className="hud-shell">
-        {activeTab === "dashboard" && (
-          <Dashboard
-            settings={{ ...settings, riderName: rider?.name }}
-            sessions={sessions}
-            onAddSession={() => setShowSessionModal(true)}
-          />
-        )}
-        {activeTab === "setup" && <SetupScreen settings={settings} />}
-        {activeTab === "history" && (
-          <HistoryScreen settings={settings} sessions={sessions} onSetupApplied={refreshSessions} />
-        )}
+        {activeTab === "tune" && <TuneScreen settings={settings} />}
         {activeTab === "settings" && (
-          <SettingsScreen
-            settings={settings}
-            onSave={handleSaveSettings}
-            onBack={() => setActiveTab("dashboard")}
-          />
+          <SettingsScreen settings={settings} onSave={handleSaveSettings} onBack={() => setActiveTab("tune")} />
         )}
       </main>
-
-      {showSessionModal && (
-        <SessionModal
-          settings={settings}
-          onClose={() => setShowSessionModal(false)}
-          onSave={handleSaveSession}
-        />
-      )}
     </div>
   );
 }

@@ -60,7 +60,14 @@ const LoginScreen = ({ onLogin }) => {
           </Hex>
         </div>
         <h1 className="hud-login__title">CREW CHIEF</h1>
-        <div className="hud-login__sub">MotoGP26 Race Engineer</div>
+        <div className="cc-gamepick" role="group" aria-label="Choose your game">
+          <span className="cc-gamepick__opt is-on" aria-current="true">
+            MotoGP 26
+          </span>
+          <a className="cc-gamepick__opt" href="/ac/">
+            Assetto Corsa
+          </a>
+        </div>
 
         <Panel
           title={isNew ? "New Rider" : "Garage Access"}
